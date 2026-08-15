@@ -32,6 +32,40 @@ class CredentialManager {
     } catch (error) {
       this.credentials = {};
     }
+
+    // Overlay environment variables so cloud deployments (Render, Railway, etc.)
+    // work without a credentials.json file being committed to git.
+    if (process.env.YOUTUBE_CLIENT_ID && process.env.YOUTUBE_CLIENT_SECRET) {
+      const redirectUri = process.env.YOUTUBE_REDIRECT_URI ||
+        `${process.env.SERVER_PROTOCOL || 'https'}://${process.env.RENDER_EXTERNAL_HOSTNAME || process.env.SERVER_HOST || 'localhost'}:${process.env.PORT || 3456}/oauth2callback`;
+      this.credentials.youtube = {
+        client_id: process.env.YOUTUBE_CLIENT_ID,
+        client_secret: process.env.YOUTUBE_CLIENT_SECRET,
+        redirect_uris: [redirectUri]
+      };
+    }
+
+    if (process.env.GEMINI_API_KEY) {
+      this.credentials.gemini = {
+        ...(this.credentials.gemini || {}),
+        apiKey: process.env.GEMINI_API_KEY,
+        model: process.env.GEMINI_MODEL || 'gemini-2.0-flash'
+      };
+    }
+
+    if (process.env.OPENAI_API_KEY) {
+      this.credentials.openai = {
+        ...(this.credentials.openai || {}),
+        apiKey: process.env.OPENAI_API_KEY
+      };
+    }
+
+    if (process.env.YOUTUBE_REFRESH_TOKEN) {
+      if (!this.tokens.youtube) {
+        this.tokens.youtube = {};
+      }
+      this.tokens.youtube.refresh_token = process.env.YOUTUBE_REFRESH_TOKEN;
+    }
   }
 
   async loadTokens() {
@@ -560,10 +594,10 @@ class CredentialManager {
       return false;
     }
 
-    // Validate YouTube tokens
+    // Validate YouTube tokens — warn but don't block startup so the web
+    // dashboard remains accessible for the OAuth flow on cloud deployments.
     if (!this.tokens.youtube) {
-      console.log(chalk.yellow('\n⚠️  YouTube authentication required'));
-      return false;
+      console.log(chalk.yellow('\n⚠️  YouTube authentication required — visit the dashboard to complete OAuth'));
     }
 
     return true;
