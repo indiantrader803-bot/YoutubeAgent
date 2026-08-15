@@ -26,8 +26,10 @@ class PublishingSchedulingAgent {
       this.youtube = google.youtube({ version: 'v3', auth });
       this.logger.info('YouTube API initialized');
     } catch (error) {
-      this.logger.error('Failed to initialize YouTube API:', error);
-      throw error;
+      // YouTube tokens not yet available (e.g. first deploy before OAuth).
+      // The server still starts so the user can complete the OAuth flow
+      // via the dashboard and then restart/redeploy.
+      this.logger.warn('YouTube API not initialised (no tokens yet) — complete OAuth via the dashboard to enable uploads');
     }
   }
 
