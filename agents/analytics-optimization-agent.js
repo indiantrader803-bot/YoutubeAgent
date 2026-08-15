@@ -25,8 +25,8 @@ class AnalyticsOptimizationAgent {
       this.youtube = google.youtube({ version: 'v3', auth });
       this.logger.info('YouTube Analytics API initialized');
     } catch (error) {
-      this.logger.error('Failed to initialize Analytics API:', error);
-      throw error;
+      // Tokens not yet available — server still starts so OAuth can be completed.
+      this.logger.warn('YouTube Analytics API not initialised (no tokens yet) — complete OAuth via the dashboard');
     }
   }
 

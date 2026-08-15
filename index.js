@@ -221,6 +221,9 @@ class YouTubeAutomationAgent {
       });
     });
 
+    // Keep-alive ping for UptimeRobot / external monitors (free Render tier)
+    this.app.get('/ping', (req, res) => res.send('pong'));
+
     // Manual content generation
     this.app.post('/generate', this.requireAPIKey(), async (req, res) => {
       try {
