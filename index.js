@@ -53,9 +53,7 @@ class YouTubeAutomationAgent {
 
       // Show which pipeline stages will run for real vs. be simulated
       await this.logCapabilitySummary();
-      
-      // Setup API endpoints
-      this.setupAPI();
+      // (API routes are registered before initialize() is called in start())
       
       // Initialize scheduler
       this.logger.info('Setting up automation scheduler...');
@@ -404,32 +402,43 @@ class YouTubeAutomationAgent {
   }
 
   async start() {
-    const initialized = await this.initialize();
-    
-    if (!initialized) {
-      console.log(chalk.red('\n❌ Failed to initialize. Please check your configuration.'));
-      process.exit(1);
-    }
-    
     const HOST = '0.0.0.0';
     const PORT = process.env.PORT || 3456;
-    // On Render, RENDER_EXTERNAL_URL is the public HTTPS URL
     const DISPLAY_URL = process.env.RENDER_EXTERNAL_URL
       ? process.env.RENDER_EXTERNAL_URL
       : `http://${process.env.SERVER_HOST || 'localhost'}:${PORT}`;
 
+    // Register ALL routes first so /auth/youtube and /ping are always reachable
+    // even before the agents finish initializing.
+    this.credentials = new CredentialManager();
+    await this.credentials.loadCredentials();
+    this.setupAPI();
+
+    // Start listening immediately so Render's health check passes
     this.app.listen(PORT, HOST, () => {
-      console.log(chalk.green(`\n✅ YouTube Automation Agent running on ${HOST}:${PORT}`));
-      console.log(chalk.gray('─'.repeat(50)));
+      console.log(chalk.green(`\n✅ Server listening on ${HOST}:${PORT}`));
       console.log(chalk.white('📊 Dashboard: ') + chalk.cyan(`${DISPLAY_URL}`));
-      console.log(chalk.white('🔧 API Health: ') + chalk.cyan(`${DISPLAY_URL}/health`));
-      console.log(chalk.white('📅 Schedule: ') + chalk.cyan(`${DISPLAY_URL}/schedule`));
-      console.log(chalk.white('📈 Analytics: ') + chalk.cyan(`${DISPLAY_URL}/analytics`));
-      console.log(chalk.gray('─'.repeat(50)));
-      console.log(chalk.yellow('\n🤖 Automation is active. Content will be generated and posted daily.'));
+      console.log(chalk.white('🔐 YouTube OAuth: ') + chalk.cyan(`${DISPLAY_URL}/auth/youtube`));
+      console.log(chalk.white('📡 Telegram detect: ') + chalk.cyan(`${DISPLAY_URL}/auth/telegram/detect`));
     });
-  }
+
+    // Then initialize everything in the background
+    const initialized = await this.initialize();
+    if (!initialized) {
+      console.log(chalk.red('\n❌ Full initialization failed — server still running for OAuth setup.'));
+      return;
+    }
+
+    console.log(chalk.green(`\n✅ YouTube Automation Agent fully initialized!`));
+    console.log(chalk.gray('─'.repeat(50)));
+    console.log(chalk.white('📊 Dashboard: ') + chalk.cyan(`${DISPLAY_URL}`));
+    console.log(chalk.white('🔧 API Health: ') + chalk.cyan(`${DISPLAY_URL}/health`));
+    console.log(chalk.white('📅 Schedule: ') + chalk.cyan(`${DISPLAY_URL}/schedule`));
+    console.log(chalk.white('📈 Analytics: ') + chalk.cyan(`${DISPLAY_URL}/analytics`));
+    console.log(chalk.gray('─'.repeat(50)));
+    console.log(chalk.yellow('\n🤖 Automation is active. Content will be generated and posted daily.'));
 }
+
 
 // Start the agent
 if (require.main === module) {
