@@ -257,10 +257,17 @@ node index.js`;
 
     // Check database
     try {
+      await this.database.initialize();
       const stats = await this.database.getStats();
       validation.database = true;
     } catch (error) {
       validation.database = false;
+    } finally {
+      try {
+        await this.database.close();
+      } catch (closeError) {
+        // ignore
+      }
     }
 
     // Check credentials

@@ -106,6 +106,8 @@ class PublishingSchedulingAgent {
       this.publishQueue = this.publishQueue.filter(entry => entry.productionId !== scheduleEntry.productionId);
       
       this.logger.success(`Content published: ${scheduleEntry.youtubeUrl}`);
+      // Notification: append entry to notifications.log
+      await fs.appendFile(path.join(__dirname, '..', 'notifications.log'), `[${new Date().toISOString()}] Video published: ${scheduleEntry.title} – ${scheduleEntry.youtubeUrl}\n`);
       return scheduleEntry;
     } catch (error) {
       this.logger.error('Failed to publish content:', error);

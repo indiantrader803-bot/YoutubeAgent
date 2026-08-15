@@ -1,0 +1,24 @@
+{
+  "title": "Getting Started with YouTube Automation",
+  "hook": {
+    "type": "question",
+    "text": "Have you ever wondered how top YouTubers manage to post consistently?"
+  },
+  "introduction": {
+    "greeting": "Hey everyone, welcome back to the channel!",
+    "topicIntro": "Today, we're diving into YouTube automation.",
+    "valueProposition": "By the end of this video, you'll understand how automation can transform your channel."
+  },
+  "mainContent": {
+    "sections": [
+      {
+        "title": "What is YouTube Automation?",
+        "content": "YouTube automation is the process of using technology to handle repetitive tasks in content creation and channel management."
+      },
+      {
+        "title": "Benefits of Automation",
+        "content": "Automation saves time, ensures consistency, and allows you to focus on strategy rather than execution."
+      }
+    ]
+  }
+}

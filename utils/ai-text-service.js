@@ -102,7 +102,7 @@ class AITextService {
       const response = await this.gemini.models.generateContent({
         model,
         contents: prompt,
-        config: { maxOutputTokens: maxTokens, temperature },
+        config: { temperature },
       });
       return response.text;
     }

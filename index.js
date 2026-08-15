@@ -248,6 +248,17 @@ class YouTubeAutomationAgent {
     });
 
     // Get upcoming schedule
+    // Get recent notification log
+    this.app.get('/notifications', async (req, res) => {
+      try {
+        const logPath = path.join(__dirname, 'notifications.log');
+        const data = await fs.readFile(logPath, 'utf8');
+        const lines = data.trim().split('\n').filter(l => l);
+        res.json({ entries: lines.slice(-20) }); // last 20 entries
+      } catch (error) {
+        res.status(500).json({ error: error.message });
+      }
+    });
     this.app.get('/schedule', async (req, res) => {
       try {
         const schedule = await this.db.getUpcomingSchedule();
@@ -323,14 +334,20 @@ class YouTubeAutomationAgent {
       process.exit(1);
     }
     
+    const HOST = '0.0.0.0';
     const PORT = process.env.PORT || 3456;
-    this.app.listen(PORT, () => {
-      console.log(chalk.green(`\n✅ YouTube Automation Agent running on port ${PORT}`));
+    // On Render, RENDER_EXTERNAL_URL is the public HTTPS URL
+    const DISPLAY_URL = process.env.RENDER_EXTERNAL_URL
+      ? process.env.RENDER_EXTERNAL_URL
+      : `http://${process.env.SERVER_HOST || 'localhost'}:${PORT}`;
+
+    this.app.listen(PORT, HOST, () => {
+      console.log(chalk.green(`\n✅ YouTube Automation Agent running on ${HOST}:${PORT}`));
       console.log(chalk.gray('─'.repeat(50)));
-      console.log(chalk.white('📊 Dashboard: ') + chalk.cyan(`http://localhost:${PORT}`));
-      console.log(chalk.white('🔧 API Health: ') + chalk.cyan(`http://localhost:${PORT}/health`));
-      console.log(chalk.white('📅 Schedule: ') + chalk.cyan(`http://localhost:${PORT}/schedule`));
-      console.log(chalk.white('📈 Analytics: ') + chalk.cyan(`http://localhost:${PORT}/analytics`));
+      console.log(chalk.white('📊 Dashboard: ') + chalk.cyan(`${DISPLAY_URL}`));
+      console.log(chalk.white('🔧 API Health: ') + chalk.cyan(`${DISPLAY_URL}/health`));
+      console.log(chalk.white('📅 Schedule: ') + chalk.cyan(`${DISPLAY_URL}/schedule`));
+      console.log(chalk.white('📈 Analytics: ') + chalk.cyan(`${DISPLAY_URL}/analytics`));
       console.log(chalk.gray('─'.repeat(50)));
       console.log(chalk.yellow('\n🤖 Automation is active. Content will be generated and posted daily.'));
     });

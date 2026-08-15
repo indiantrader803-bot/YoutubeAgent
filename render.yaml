@@ -1,0 +1,74 @@
+services:
+  - type: web
+    name: youtube-automation-agent
+    env: node
+    region: singapore
+    plan: free
+    buildCommand: npm install
+    startCommand: node index.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: SERVER_PROTOCOL
+        value: https
+      - key: LOG_LEVEL
+        value: info
+      - key: YOUTUBE_REGION
+        value: US
+      - key: DEFAULT_PRIVACY_STATUS
+        value: private
+      - key: AUTO_SHORTEN_CONTENT
+        value: "true"
+      - key: AUTO_ADD_BACKLINKS
+        value: "true"
+      - key: PRESERVE_FORMATTING
+        value: "true"
+      - key: AUTO_RESIZE_IMAGES
+        value: "true"
+      - key: MAX_IMAGE_WIDTH
+        value: "1280"
+      - key: MAX_IMAGE_HEIGHT
+        value: "720"
+      - key: IMAGE_QUALITY
+        value: "90"
+      - key: GLOBAL_RATE_LIMIT_PER_HOUR
+        value: "50"
+      - key: DEFAULT_DELAY_BETWEEN_POSTS
+        value: "60000"
+      - key: TTS_VOICE
+        value: neural_voice_1
+      - key: ENABLE_ANALYTICS
+        value: "true"
+      - key: ANALYTICS_DB_PATH
+        value: ./data/analytics.db
+      - key: MAX_FILE_SIZE
+        value: "52428800"
+      - key: UPLOAD_PATH
+        value: ./uploads
+      - key: RETRY_ATTEMPTS
+        value: "3"
+      - key: RETRY_DELAY
+        value: "5000"
+      - key: DAILY_CONTENT_ENABLED
+        value: "true"
+      - key: AUTO_PUBLISH_ENABLED
+        value: "true"
+      - key: OPTIMIZATION_ENABLED
+        value: "true"
+      - key: CONTENT_BUFFER_DAYS
+        value: "3"
+      - key: MAX_DAILY_POSTS
+        value: "1"
+      - key: NOTIFICATION_ENABLED
+        value: "true"
+      - key: DEBUG_MODE
+        value: "false"
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: YOUTUBE_CLIENT_ID
+        sync: false
+      - key: YOUTUBE_CLIENT_SECRET
+        sync: false
