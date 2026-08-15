@@ -281,7 +281,81 @@ class YouTubeAutomationAgent {
         res.status(500).json({ success: false, error: error.message });
       }
     });
+
+    // ── YouTube OAuth Flow ──────────────────────────────────────────────────
+    // Step 1: redirect user to Google consent screen
+    this.app.get('/auth/youtube', (req, res) => {
+      try {
+        const { google } = require('googleapis');
+        const creds = this.credentials.credentials.youtube;
+        if (!creds) return res.status(400).send('YouTube credentials not configured. Set YOUTUBE_CLIENT_ID and YOUTUBE_CLIENT_SECRET in Render env vars.');
+        const redirectUri = process.env.RENDER_EXTERNAL_URL
+          ? `${process.env.RENDER_EXTERNAL_URL}/auth/youtube/callback`
+          : `http://localhost:${process.env.PORT || 3456}/auth/youtube/callback`;
+        const oauth2Client = new google.auth.OAuth2(creds.client_id, creds.client_secret, redirectUri);
+        const url = oauth2Client.generateAuthUrl({
+          access_type: 'offline',
+          prompt: 'consent',
+          scope: [
+            'https://www.googleapis.com/auth/youtube.upload',
+            'https://www.googleapis.com/auth/youtube',
+            'https://www.googleapis.com/auth/youtube.readonly',
+            'https://www.googleapis.com/auth/yt-analytics.readonly'
+          ]
+        });
+        res.redirect(url);
+      } catch (e) {
+        res.status(500).send(e.message);
+      }
+    });
+
+    // Step 2: Google redirects back here with ?code=
+    this.app.get('/auth/youtube/callback', async (req, res) => {
+      try {
+        const { google } = require('googleapis');
+        const { code } = req.query;
+        const creds = this.credentials.credentials.youtube;
+        const redirectUri = process.env.RENDER_EXTERNAL_URL
+          ? `${process.env.RENDER_EXTERNAL_URL}/auth/youtube/callback`
+          : `http://localhost:${process.env.PORT || 3456}/auth/youtube/callback`;
+        const oauth2Client = new google.auth.OAuth2(creds.client_id, creds.client_secret, redirectUri);
+        const { tokens } = await oauth2Client.getToken(code);
+        // Save tokens in memory + to file (best-effort)
+        this.credentials.tokens.youtube = tokens;
+        const tokensPath = require('path').join(__dirname, 'config', 'tokens.json');
+        await require('fs').promises.mkdir(require('path').dirname(tokensPath), { recursive: true });
+        await require('fs').promises.writeFile(tokensPath, JSON.stringify(tokens, null, 2));
+        // Re-init publishing agent with new tokens
+        await this.agents.publishing.setupYouTubeAPI();
+        await this.agents.analytics.setupAnalyticsAPI();
+        res.send(`
+          <h2>✅ YouTube Connected Successfully!</h2>
+          <p><b>Refresh Token:</b> <code>${tokens.refresh_token || 'N/A (already stored)'}</code></p>
+          <p>⚠️ Add this as <b>YOUTUBE_REFRESH_TOKEN</b> in your <a href="https://dashboard.render.com/web/srv-da02shu1egvs73fp6u30" target="_blank">Render Environment Variables</a> so it persists after restarts.</p>
+          <p><a href="/">← Back to Dashboard</a></p>
+        `);
+      } catch (e) {
+        res.status(500).send(`OAuth failed: ${e.message}`);
+      }
+    });
+
+    // Telegram: auto-detect channel ID
+    this.app.get('/auth/telegram/detect', async (req, res) => {
+      try {
+        const { TelegramNotifier } = require('./utils/telegram-notifier');
+        const tg = new TelegramNotifier();
+        const channelId = await tg.detectChannelId();
+        if (channelId) {
+          res.json({ success: true, channelId, message: `Add TELEGRAM_CHANNEL_ID=${channelId} to Render env vars` });
+        } else {
+          res.json({ success: false, message: 'No channel found. Make sure @YoutubeAIVideo_bot is added as Admin to your Telegram channel and you sent a message there.' });
+        }
+      } catch (e) {
+        res.status(500).json({ error: e.message });
+      }
+    });
   }
+
 
   async generateContent(topic = null, style = null, length = 'medium') {
     this.logger.info('Starting content generation pipeline...');

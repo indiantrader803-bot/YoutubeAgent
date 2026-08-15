@@ -3,6 +3,7 @@ const fs = require('fs').promises;
 const fsSync = require('fs');
 const path = require('path');
 const { Logger } = require('../utils/logger');
+const { TelegramNotifier } = require('../utils/telegram-notifier');
 
 class PublishingSchedulingAgent {
   constructor(db, credentials) {
@@ -11,13 +12,49 @@ class PublishingSchedulingAgent {
     this.logger = new Logger('PublishingScheduling');
     this.youtube = null;
     this.publishQueue = [];
+    this.telegram = new TelegramNotifier();
   }
 
   async initialize() {
     this.logger.info('Initializing Publishing & Scheduling Agent...');
     await this.setupYouTubeAPI();
     await this.loadPublishQueue();
+    // Auto-detect Telegram channel ID if not set
+    await this.telegram.detectChannelId();
+    if (this.telegram.enabled) {
+      this.logger.info('Telegram notifications enabled');
+    } else {
+      this.logger.warn('Telegram notifications disabled — set TELEGRAM_BOT_TOKEN and TELEGRAM_CHANNEL_ID');
+    }
     return true;
+  }
+
+  // Returns the best UTC publish time based on YouTube peak hours (IST)
+  getBestPublishTime() {
+    // Best times to post on YouTube (IST): 6–9 PM on weekdays, 10 AM–12 PM weekends
+    const now = new Date();
+    // Convert to IST (UTC+5:30)
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const ist = new Date(now.getTime() + istOffset);
+    const dayOfWeek = ist.getUTCDay(); // 0=Sun, 6=Sat
+    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
+    // Target publish hour in IST
+    const targetHourIST = isWeekend ? 11 : 19; // 11 AM weekend, 7 PM weekday
+
+    // Build target date in IST
+    const target = new Date(ist);
+    target.setUTCHours(targetHourIST, 0, 0, 0);
+
+    // If target time already passed today, schedule for tomorrow
+    if (target.getTime() <= ist.getTime()) {
+      target.setUTCDate(target.getUTCDate() + 1);
+    }
+
+    // Convert back to UTC
+    const utcTarget = new Date(target.getTime() - istOffset);
+    this.logger.info(`Best publish time: ${utcTarget.toISOString()} (${isWeekend ? '11 AM' : '7 PM'} IST)`);
+    return utcTarget.toISOString();
   }
 
   async setupYouTubeAPI() {
@@ -108,8 +145,21 @@ class PublishingSchedulingAgent {
       this.publishQueue = this.publishQueue.filter(entry => entry.productionId !== scheduleEntry.productionId);
       
       this.logger.success(`Content published: ${scheduleEntry.youtubeUrl}`);
-      // Notification: append entry to notifications.log
-      await fs.appendFile(path.join(__dirname, '..', 'notifications.log'), `[${new Date().toISOString()}] Video published: ${scheduleEntry.title} – ${scheduleEntry.youtubeUrl}\n`);
+
+      // Append to notifications.log
+      await fs.appendFile(
+        path.join(__dirname, '..', 'notifications.log'),
+        `[${new Date().toISOString()}] Video published: ${scheduleEntry.title} – ${scheduleEntry.youtubeUrl}\n`
+      ).catch(() => {});
+
+      // Send Telegram notification
+      await this.telegram.notifyVideoPublished({
+        title: scheduleEntry.title,
+        youtubeUrl: scheduleEntry.youtubeUrl,
+        scheduledTime: scheduleEntry.publishedAt,
+        topic: scheduleEntry.metadata?.seo?.primaryKeyword || ''
+      });
+
       return scheduleEntry;
     } catch (error) {
       this.logger.error('Failed to publish content:', error);
