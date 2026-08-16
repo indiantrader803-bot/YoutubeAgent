@@ -295,28 +295,63 @@ class AIVideoGenerator {
   }
 
   async generateVideo(script, visualAssets, audioPath, outputPath) {
-    this.logger.info('Generating unique visual video from assets...');
+    this.logger.info('Generating rich visual video with screen content...');
     
     try {
       if (this.replicate && this.replicate.auth) {
         return await this.generateReplicateVideo(script, visualAssets, audioPath, outputPath);
       }
       
-      // Fast lightweight video rendering using FFmpeg (renders title card, slide content, and audio)
-      await fs.mkdir(path.dirname(outputPath), { recursive: true });
-      const title = String(script?.title || 'Viral Story').replace(/'/g, '');
-      const sections = script?.mainContent?.sections || [];
-      const section1 = String(sections[0]?.title || 'Key Insights').replace(/'/g, '');
+      const slidesDir = path.join(path.dirname(outputPath), `slides_${Date.now()}`);
+      await fs.mkdir(slidesDir, { recursive: true });
 
-      // Create unique animated visuals using high-contrast color shifts and audio muxing
-      const randomHue = Math.floor(Math.random() * 360);
-      await runFFmpeg([
-        '-f', 'lavfi', '-i', `color=c=0x1e1b4b:s=1280x720:r=30:d=10`,
-        '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=44100:d=10',
-        '-c:v', 'libx264', '-t', '10', '-pix_fmt', 'yuv420p',
-        '-c:a', 'aac', '-b:a', '128k', '-shortest', '-y',
-        outputPath
-      ]);
+      const title = (script?.title || 'Viral Video Story').replace(/'/g, '');
+      const sections = script?.mainContent?.sections || [
+        { title: 'Introduction', content: ['Welcome to our deep dive story today.'] },
+        { title: 'Key Insights', content: ['Unlocking the mystery step by step.'] },
+        { title: 'Conclusion & Next Steps', content: ['Subscribe for daily viral updates.'] }
+      ];
+
+      const slideItems = [
+        { title: title, subtitle: 'YOUTUBE AI FEATURED STORY', bg: '#0f172a' },
+        ...sections.map((s, idx) => ({
+          title: `Section ${idx + 1}: ${s.title || 'Overview'}`,
+          subtitle: Array.isArray(s.content) ? s.content[0] : (typeof s.content === 'string' ? s.content : 'Discover amazing insights below.'),
+          bg: idx % 2 === 0 ? '#1e1b4b' : '#311042'
+        })),
+        { title: '✨ Thanks for Watching! ✨', subtitle: 'Subscribe to our channel for daily viral updates', bg: '#030712' }
+      ];
+
+      const sharp = require('sharp');
+      const stills = [];
+
+      for (let i = 0; i < slideItems.length; i++) {
+        const item = slideItems[i];
+        const titleText = String(item.title).slice(0, 50).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/'/g, '&apos;');
+        const subText = String(item.subtitle).slice(0, 90).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/'/g, '&apos;');
+
+        const svg = `<svg width="1280" height="720" xmlns="http://www.w3.org/2000/svg">
+          <rect width="1280" height="720" fill="${item.bg}"/>
+          <circle cx="640" cy="360" r="300" fill="#8b5cf6" opacity="0.12"/>
+          <rect x="80" y="80" width="1120" height="560" rx="24" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="3"/>
+          <text x="640" y="320" font-family="Arial, sans-serif" font-size="44" font-weight="bold" fill="#ffffff" text-anchor="middle">${titleText}</text>
+          <text x="640" y="410" font-family="Arial, sans-serif" font-size="24" fill="#38bdf8" text-anchor="middle">${subText}</text>
+          <text x="640" y="600" font-family="Arial, sans-serif" font-size="18" fill="#94a3b8" text-anchor="middle">YouTube AI Automation Agent • 2026</text>
+        </svg>`;
+
+        const slideImgPath = path.join(slidesDir, `slide_${String(i).padStart(3, '0')}.png`);
+        await sharp(Buffer.from(svg)).png().toFile(slideImgPath);
+        stills.push(slideImgPath);
+      }
+
+      // Stitch slides into video using FFmpeg
+      const videoOnlyPath = outputPath.replace('.mp4', '_visual.mp4');
+      await this.renderSlidesToVideo(stills, 12, videoOnlyPath);
+
+      // Add audio track (or synthetic narration tone if audioPath missing)
+      await this.addAudioToVideo(videoOnlyPath, audioPath, outputPath);
+      await this.cleanupDirectory(slidesDir).catch(() => {});
+
       return outputPath;
     } catch (error) {
       this.logger.error('Video generation failed:', error);
