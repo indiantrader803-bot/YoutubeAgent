@@ -88,27 +88,36 @@ class DailyAutomation {
 
   async runDailyContentGeneration() {
     try {
-      this.logger.info('Starting daily content generation (5 Animated/Cartoon videos)...');
+      this.logger.info('Starting daily content generation (5 Multi-Niche Viral videos)...');
       
       const timer = this.logger.startTimer('Daily Content Generation (5 Videos)');
       const generatedCount = 5;
 
-      for (let i = 0; i < generatedCount; i++) {
-        this.logger.info(`Generating video ${i + 1} of ${generatedCount}...`);
+      // Top viral YouTube niches for maximum views & subscriber growth
+      const viralNiches = [
+        { niche: 'Animation Cartoon Story', type: 'animation' },
+        { niche: 'Mind Blowing Facts & Mysteries', type: 'explainer' },
+        { niche: 'AI & Future Technology Revolutions', type: 'informative' },
+        { niche: 'Crazy Psychology Facts & Hacks', type: 'engaging' },
+        { niche: 'Inspiring Success & Wealth Mindset Stories', type: 'story' }
+      ];
 
-        // Generate content strategy tailored to viral Animation & Cartoon storytelling
-        const strategy = await this.agents.strategy.generateContentStrategy('Animation Cartoon Story');
-        strategy.contentType = 'animation';
-        this.logger.info(`[Video ${i + 1}] Generated strategy: ${strategy.topic}`);
+      for (let i = 0; i < generatedCount; i++) {
+        const targetNiche = viralNiches[i % viralNiches.length];
+        this.logger.info(`Generating video ${i + 1} of ${generatedCount} (${targetNiche.niche})...`);
+
+        // Generate dynamic strategy based on trend research + niche
+        const strategy = await this.agents.strategy.generateContentStrategy(targetNiche.niche);
+        strategy.contentType = targetNiche.type;
+        this.logger.info(`[Video ${i + 1}] Strategy topic: ${strategy.topic}`);
 
         // Generate script
         const script = await this.agents.scriptWriter.generateScript(strategy);
-        this.logger.info(`[Video ${i + 1}] Generated script: ${script.title}`);
 
         // Generate thumbnail
         const thumbnail = await this.agents.thumbnailDesigner.generateThumbnail(script);
 
-        // Optimize SEO (Viral Animated Hashtags & High CTR Titles)
+        // Optimize SEO
         const seoData = await this.agents.seoOptimizer.optimize(script, strategy);
 
         // Process through production
@@ -122,7 +131,7 @@ class DailyAutomation {
         // Schedule for publishing
         const scheduleEntry = await this.agents.publishing.scheduleContent(productionData);
         if (scheduleEntry) {
-          this.logger.info(`[Video ${i + 1}] Scheduled for publishing`);
+          this.logger.info(`[Video ${i + 1}] Scheduled and queued for publication`);
         }
 
         // Log individual event
@@ -132,12 +141,11 @@ class DailyAutomation {
           scheduledFor: productionData.scheduledPublishTime
         });
 
-        // Small pause between generations
         await new Promise(res => setTimeout(res, 2000));
       }
 
       timer.end();
-      this.logger.success('Daily batch of 5 Animation/Cartoon videos generated & scheduled successfully');
+      this.logger.success('Daily batch of 5 Multi-Niche viral videos generated & scheduled successfully');
 
     } catch (error) {
       this.logger.error('Daily content generation failed:', error);

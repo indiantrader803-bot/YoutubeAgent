@@ -1,0 +1,17 @@
+name: 24/7 Server Keep-Alive & Auto-Pinger
+
+on:
+  schedule:
+    # Run every 5 minutes 24/7 to prevent Render free tier sleeping
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping-server:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Live Server
+        run: |
+          echo "Pinging YouTube Automation Server..."
+          curl -s https://youtube-automation-agent-mdv0.onrender.com/ping
+          echo "Server is live and active!"
