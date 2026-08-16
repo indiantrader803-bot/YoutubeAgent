@@ -432,7 +432,7 @@ class YouTubeAutomationAgent {
     console.log(chalk.white('📅 Schedule: ') + chalk.cyan(`${DISPLAY_URL}/schedule`));
     console.log(chalk.white('📈 Analytics: ') + chalk.cyan(`${DISPLAY_URL}/analytics`));
     console.log(chalk.gray('─'.repeat(50)));
-    console.log(chalk.yellow('\n🤖 Automation is active. Content will be generated and posted daily.'));
+  }
 }
 
 
