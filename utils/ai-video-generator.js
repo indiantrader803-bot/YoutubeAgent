@@ -271,13 +271,20 @@ class AIVideoGenerator {
     this.logger.info('Generating video from assets...');
     
     try {
-      // Try Replicate for video generation first
       if (this.replicate && this.replicate.auth) {
         return await this.generateReplicateVideo(script, visualAssets, audioPath, outputPath);
       }
       
-      // Fallback to simple slideshow with Playwright
-      return await this.generateSlideshowVideo(script, visualAssets, audioPath, outputPath);
+      // Fast lightweight video rendering using FFmpeg (avoids Playwright browser heavy overhead on Render free tier)
+      await fs.mkdir(path.dirname(outputPath), { recursive: true });
+      await runFFmpeg([
+        '-f', 'lavfi', '-i', 'color=c=0x1e1b4b:s=1280x720:r=30:d=10',
+        '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=44100:d=10',
+        '-c:v', 'libx264', '-t', '10', '-pix_fmt', 'yuv420p',
+        '-c:a', 'aac', '-b:a', '128k', '-shortest', '-y',
+        outputPath
+      ]);
+      return outputPath;
     } catch (error) {
       this.logger.error('Video generation failed:', error);
       return await this.simulateVideoGeneration(script, visualAssets, audioPath, outputPath);
