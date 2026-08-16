@@ -679,10 +679,10 @@ class ProductionManagementAgent {
     if (hasFFmpeg) {
       try {
         const title = (productionData.script?.title || 'Viral Video').replace(/'/g, '');
-        // Generate a 10-second animated color gradient video with audio using lavfi filter graph
+        // Generate a 10-second high-definition color video with synthetic tone using lavfi
         await runFFmpeg([
-          '-f', 'lavfi', '-i', 'testsrc=size=1280x720:rate=30',
-          '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=44100',
+          '-f', 'lavfi', '-i', 'color=c=0x1e1b4b:s=1280x720:r=30:d=10',
+          '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=44100:d=10',
           '-c:v', 'libx264', '-t', '10', '-pix_fmt', 'yuv420p',
           '-c:a', 'aac', '-b:a', '128k', '-shortest', '-y',
           finalVideoPath
