@@ -117,8 +117,9 @@ class DailyAutomation {
         const formatLabel = item.isShort ? 'YouTube Short (9:16)' : 'Long-Form Video (16:9)';
         this.logger.info(`Generating video ${i + 1} of ${dailyBatch.length} [${formatLabel}] (${item.niche})...`);
 
-        // Generate dynamic strategy based on trend research + format
-        const strategy = await this.agents.strategy.generateContentStrategy(item.niche);
+        // Add dynamic variation so every generated video has 100% unique context and visual elements
+        const uniqueTopic = `${item.niche} #${Math.floor(Math.random() * 8999 + 1000)}: ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+        const strategy = await this.agents.strategy.generateContentStrategy(uniqueTopic);
         strategy.contentType = item.type;
         strategy.isShort = item.isShort;
         this.logger.info(`[Video ${i + 1}] Strategy topic: ${strategy.topic}`);
