@@ -177,17 +177,30 @@ class CredentialManager {
   }
 
   getYouTubeAuth() {
-    if (!this.credentials.youtube || !this.tokens.youtube) {
+    const clientId = process.env.YOUTUBE_CLIENT_ID || this.credentials?.youtube?.client_id;
+    const clientSecret = process.env.YOUTUBE_CLIENT_SECRET || this.credentials?.youtube?.client_secret;
+    const refreshToken = process.env.YOUTUBE_REFRESH_TOKEN || this.tokens?.youtube?.refresh_token;
+
+    if (!clientId || !clientSecret) {
       throw new Error('YouTube credentials not configured');
     }
 
     const oauth2Client = new google.auth.OAuth2(
-      this.credentials.youtube.client_id,
-      this.credentials.youtube.client_secret,
-      this.credentials.youtube.redirect_uris[0]
+      clientId,
+      clientSecret,
+      process.env.YOUTUBE_REDIRECT_URI || 'https://youtube-automation-agent-mdv0.onrender.com/auth/youtube/callback'
     );
 
-    oauth2Client.setCredentials(this.tokens.youtube);
+    const tokens = this.tokens?.youtube || {};
+    if (refreshToken) {
+      tokens.refresh_token = refreshToken;
+    }
+
+    if (!tokens.refresh_token && !tokens.access_token) {
+      throw new Error('YouTube token not configured');
+    }
+
+    oauth2Client.setCredentials(tokens);
     return oauth2Client;
   }
 
