@@ -5,9 +5,16 @@ const PROVIDERS = {
   openai: {
     name: 'OpenAI',
     baseURL: 'https://api.openai.com/v1',
-    defaultModel: 'gpt-5.5',
-    models: ['gpt-5.5', 'gpt-5.5-instant', 'gpt-5.4'],
+    defaultModel: 'gpt-4o-mini',
+    models: ['gpt-4o-mini', 'gpt-4o', 'gpt-3.5-turbo'],
     envKey: 'OPENAI_API_KEY',
+  },
+  groq: {
+    name: 'Groq',
+    baseURL: 'https://api.groq.com/openai/v1',
+    defaultModel: 'llama-3.3-70b-versatile',
+    models: ['llama-3.3-70b-versatile', 'mixtral-8x7b-32768'],
+    envKey: 'GROQ_API_KEY',
   },
   openrouter: {
     name: 'OpenRouter',
