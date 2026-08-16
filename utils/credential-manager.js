@@ -60,6 +60,14 @@ class CredentialManager {
       };
     }
 
+    if (process.env.GROQ_API_KEY) {
+      this.credentials.groq = {
+        ...(this.credentials.groq || {}),
+        apiKey: process.env.GROQ_API_KEY,
+        model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile'
+      };
+    }
+
     if (process.env.YOUTUBE_REFRESH_TOKEN) {
       if (!this.tokens.youtube) {
         this.tokens.youtube = {};
