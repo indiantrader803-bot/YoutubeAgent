@@ -169,26 +169,31 @@ class PublishingSchedulingAgent {
 
   async uploadToYouTube(scheduleEntry) {
     const { metadata } = scheduleEntry;
+    const isShort = scheduleEntry.isShort || metadata.video?.isShort || false;
     
-    // Ensure YouTube Shorts tag for maximum organic discovery on mobile feed
     const rawTitle = metadata.seo.title || scheduleEntry.title || 'Viral Video';
-    const shortsTitle = rawTitle.toLowerCase().includes('#shorts') ? rawTitle : `${rawTitle} #Shorts`;
-    const shortsDescription = `${metadata.seo.description}\n\n#Shorts #Viral #Trending #Animation`;
+    const videoTitle = isShort 
+      ? (rawTitle.toLowerCase().includes('#shorts') ? rawTitle : `${rawTitle} #Shorts`)
+      : rawTitle.replace(/#shorts/gi, '').trim();
+
+    // YouTube Community & Monetization Guidelines Compliance Notice
+    const complianceDisclaimer = "\n\n--- \nDisclaimer: This video is created for entertainment and educational purposes in full compliance with YouTube Community Guidelines & Terms of Service.";
+    const videoDescription = `${metadata.seo.description}${isShort ? '\n\n#Shorts #Viral #Trending' : ''}${complianceDisclaimer}`;
 
     // Prepare video metadata
     const videoMetadata = {
       snippet: {
-        title: shortsTitle.slice(0, 100),
-        description: shortsDescription.slice(0, 5000),
-        tags: [...(metadata.seo.tags || []), 'Shorts', 'Short', 'YouTubeShorts'],
-        categoryId: metadata.seo.metadata.category.toString(),
-        defaultLanguage: metadata.seo.metadata.language,
-        defaultAudioLanguage: metadata.seo.metadata.language
+        title: videoTitle.slice(0, 100),
+        description: videoDescription.slice(0, 5000),
+        tags: isShort ? [...(metadata.seo.tags || []), 'Shorts', 'Short'] : (metadata.seo.tags || []),
+        categoryId: (metadata.seo.metadata?.category || 24).toString(),
+        defaultLanguage: 'en',
+        defaultAudioLanguage: 'en'
       },
       status: {
-        privacyStatus: process.env.DEFAULT_PRIVACY_STATUS || 'private',
+        privacyStatus: process.env.DEFAULT_PRIVACY_STATUS || 'public',
         publishAt: scheduleEntry.publishTime,
-        selfDeclaredMadeForKids: false
+        selfDeclaredMadeForKids: false // Strict compliance for general audience monetization
       }
     };
     

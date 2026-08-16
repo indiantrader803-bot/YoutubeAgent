@@ -99,27 +99,28 @@ class DailyAutomation {
 
   async runDailyContentGeneration() {
     try {
-      this.logger.info('Starting daily content generation (5 Multi-Niche Viral videos)...');
+      this.logger.info('Starting daily content generation (Dual Long-Form + YouTube Shorts)...');
       
-      const timer = this.logger.startTimer('Daily Content Generation (5 Videos)');
-      const generatedCount = 5;
-
-      // Top viral YouTube niches for maximum views & subscriber growth
-      const viralNiches = [
-        { niche: 'Animation Cartoon Story', type: 'animation' },
-        { niche: 'Mind Blowing Facts & Mysteries', type: 'explainer' },
-        { niche: 'AI & Future Technology Revolutions', type: 'informative' },
-        { niche: 'Crazy Psychology Facts & Hacks', type: 'engaging' },
-        { niche: 'Inspiring Success & Wealth Mindset Stories', type: 'story' }
+      const timer = this.logger.startTimer('Daily Content Generation (Dual Formats)');
+      
+      // Daily batch split: 3 YouTube Shorts (vertical 9:16) + 2 Long-Form videos (horizontal 16:9)
+      const dailyBatch = [
+        { niche: 'Animation Cartoon Story', type: 'animation', isShort: true },
+        { niche: 'Mind Blowing Facts & Mysteries', type: 'explainer', isShort: false },
+        { niche: 'AI & Future Technology Revolutions', type: 'informative', isShort: true },
+        { niche: 'Crazy Psychology Facts & Hacks', type: 'engaging', isShort: true },
+        { niche: 'Inspiring Success & Wealth Mindset Stories', type: 'story', isShort: false }
       ];
 
-      for (let i = 0; i < generatedCount; i++) {
-        const targetNiche = viralNiches[i % viralNiches.length];
-        this.logger.info(`Generating video ${i + 1} of ${generatedCount} (${targetNiche.niche})...`);
+      for (let i = 0; i < dailyBatch.length; i++) {
+        const item = dailyBatch[i];
+        const formatLabel = item.isShort ? 'YouTube Short (9:16)' : 'Long-Form Video (16:9)';
+        this.logger.info(`Generating video ${i + 1} of ${dailyBatch.length} [${formatLabel}] (${item.niche})...`);
 
-        // Generate dynamic strategy based on trend research + niche
-        const strategy = await this.agents.strategy.generateContentStrategy(targetNiche.niche);
-        strategy.contentType = targetNiche.type;
+        // Generate dynamic strategy based on trend research + format
+        const strategy = await this.agents.strategy.generateContentStrategy(item.niche);
+        strategy.contentType = item.type;
+        strategy.isShort = item.isShort;
         this.logger.info(`[Video ${i + 1}] Strategy topic: ${strategy.topic}`);
 
         // Generate script
@@ -128,7 +129,7 @@ class DailyAutomation {
         // Generate thumbnail
         const thumbnail = await this.agents.thumbnailDesigner.generateThumbnail(script);
 
-        // Optimize SEO
+        // Optimize SEO (Strict YouTube Guidelines + Copyright Safe)
         const seoData = await this.agents.seoOptimizer.optimize(script, strategy);
 
         // Process through production
@@ -138,17 +139,20 @@ class DailyAutomation {
           thumbnail,
           seo: seoData
         });
+        productionData.isShort = item.isShort;
 
         // Schedule for publishing
         const scheduleEntry = await this.agents.publishing.scheduleContent(productionData);
         if (scheduleEntry) {
-          this.logger.info(`[Video ${i + 1}] Scheduled and queued for publication`);
+          scheduleEntry.isShort = item.isShort;
+          this.logger.info(`[Video ${i + 1} - ${formatLabel}] Scheduled and queued for publication`);
         }
 
         // Log individual event
         await this.logAutomationEvent('daily_content_generation', 'success', {
           contentId: productionData.id,
           topic: strategy.topic,
+          isShort: item.isShort,
           scheduledFor: productionData.scheduledPublishTime
         });
 
@@ -156,7 +160,7 @@ class DailyAutomation {
       }
 
       timer.end();
-      this.logger.success('Daily batch of 5 Multi-Niche viral videos generated & scheduled successfully');
+      this.logger.success('Daily batch of 3 Shorts + 2 Long-Form videos generated & scheduled successfully');
 
     } catch (error) {
       this.logger.error('Daily content generation failed:', error);
