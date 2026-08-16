@@ -174,6 +174,13 @@ class PublishingSchedulingAgent {
   }
 
   async uploadToYouTube(scheduleEntry) {
+    if (!this.youtube) {
+      await this.setupYouTubeAPI();
+    }
+    if (!this.youtube) {
+      throw new Error('YouTube API not authenticated. Please complete YouTube OAuth consent flow on the dashboard.');
+    }
+
     const { metadata } = scheduleEntry;
     const isShort = scheduleEntry.isShort || metadata.video?.isShort || false;
     
