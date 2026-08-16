@@ -106,10 +106,15 @@ Return only valid JSON with this exact shape:
 Video title: ${script.title}
 Topic: ${strategy.topic}
 Angle: ${strategy.angle}
-Content type: ${strategy.contentType}
+Content type: ${strategy.contentType || 'Animation Story'}
 Target audience: ${strategy.targetAudience}
 Keywords: ${(strategy.keywords || []).join(', ')}
-Keep tags under YouTube's 500 character total guidance. Avoid fabricated statistics and unsupported claims.`;
+
+Guidelines:
+1. Make the title extremely click-worthy, viral, and curiosity-inducing (under 100 chars).
+2. Include 5 to 8 high-performing viral hashtags at the end of the description (e.g. #Animation #Cartoon #StoryTime #Viral #Shorts #Trending).
+3. Ensure description includes keyword-dense summary to trigger YouTube recommendations.
+Keep tags under 500 characters total.`;
 
     try {
       const response = await this.aiTextService.generateText(prompt, {
