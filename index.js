@@ -287,9 +287,7 @@ class YouTubeAutomationAgent {
         const { google } = require('googleapis');
         const creds = this.credentials.credentials.youtube;
         if (!creds) return res.status(400).send('YouTube credentials not configured. Set YOUTUBE_CLIENT_ID and YOUTUBE_CLIENT_SECRET in Render env vars.');
-        const redirectUri = process.env.RENDER_EXTERNAL_URL
-          ? `${process.env.RENDER_EXTERNAL_URL}/auth/youtube/callback`
-          : `http://localhost:${process.env.PORT || 3456}/auth/youtube/callback`;
+        const redirectUri = 'https://youtube-automation-agent-mdv0.onrender.com/auth/youtube/callback';
         const oauth2Client = new google.auth.OAuth2(creds.client_id, creds.client_secret, redirectUri);
         const url = oauth2Client.generateAuthUrl({
           access_type: 'offline',
@@ -313,9 +311,7 @@ class YouTubeAutomationAgent {
         const { google } = require('googleapis');
         const { code } = req.query;
         const creds = this.credentials.credentials.youtube;
-        const redirectUri = process.env.RENDER_EXTERNAL_URL
-          ? `${process.env.RENDER_EXTERNAL_URL}/auth/youtube/callback`
-          : `http://localhost:${process.env.PORT || 3456}/auth/youtube/callback`;
+        const redirectUri = 'https://youtube-automation-agent-mdv0.onrender.com/auth/youtube/callback';
         const oauth2Client = new google.auth.OAuth2(creds.client_id, creds.client_secret, redirectUri);
         const { tokens } = await oauth2Client.getToken(code);
         // Save tokens in memory + to file (best-effort)
