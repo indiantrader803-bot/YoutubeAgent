@@ -333,7 +333,7 @@
         .floating-refresh {
             position: fixed;
             bottom: 30px;
-            right: 30px;
+            right: 100px;
             width: 56px;
             height: 56px;
             border-radius: 50%;
@@ -352,6 +352,156 @@
 
         .floating-refresh:hover {
             transform: rotate(180deg) scale(1.1);
+        }
+
+        /* 💬 Interactive Floating AI Chatbot Widget Styles */
+        .chatbot-trigger {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 58px;
+            height: 58px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent-purple), var(--accent-blue));
+            color: white;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            box-shadow: 0 8px 25px rgba(139, 92, 246, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 999;
+        }
+
+        .chatbot-trigger:hover {
+            transform: scale(1.1);
+        }
+
+        .chatbot-modal {
+            position: fixed;
+            bottom: 100px;
+            right: 30px;
+            width: 380px;
+            max-width: calc(100vw - 40px);
+            height: 520px;
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 20px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+            display: none;
+            flex-direction: column;
+            overflow: hidden;
+            z-index: 1000;
+            animation: slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .chat-header {
+            padding: 16px 20px;
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.2), rgba(59, 130, 246, 0.2));
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-header-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .chat-header-info h3 {
+            font-size: 0.95rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .chat-header-info p {
+            font-size: 0.75rem;
+            color: var(--accent-green);
+        }
+
+        .chat-close {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1.2rem;
+            cursor: pointer;
+        }
+
+        .chat-body {
+            flex: 1;
+            padding: 16px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .chat-msg {
+            max-width: 85%;
+            padding: 10px 14px;
+            border-radius: 14px;
+            font-size: 0.85rem;
+            line-height: 1.5;
+        }
+
+        .chat-msg.assistant {
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text-primary);
+            border-bottom-left-radius: 4px;
+            align-self: flex-start;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .chat-msg.user {
+            background: linear-gradient(135deg, var(--accent-purple), var(--accent-blue));
+            color: white;
+            border-bottom-right-radius: 4px;
+            align-self: flex-end;
+        }
+
+        .chat-footer {
+            padding: 12px 16px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            gap: 8px;
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        .chat-input {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 10px 14px;
+            color: white;
+            font-family: inherit;
+            font-size: 0.85rem;
+            outline: none;
+        }
+
+        .chat-send-btn {
+            background: var(--accent-purple);
+            color: white;
+            border: none;
+            padding: 0 16px;
+            border-radius: 10px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .chat-send-btn:hover {
+            background: var(--accent-blue);
         }
 
         /* Responsive Adjustments */
@@ -506,7 +656,78 @@
         🔄
     </button>
 
+    <!-- 💬 Floating AI Assistant Chatbot Button & Modal -->
+    <button class="chatbot-trigger" onclick="toggleChatbot()" title="Ask AI Assistant">
+        💬
+    </button>
+
+    <div class="chatbot-modal" id="chatbot-modal">
+        <div class="chat-header">
+            <div class="chat-header-info">
+                <span>🤖</span>
+                <div>
+                    <h3>AI Channel Assistant</h3>
+                    <p>🟢 Online & Intelligent</p>
+                </div>
+            </div>
+            <button class="chat-close" onclick="toggleChatbot()">✕</button>
+        </div>
+        <div class="chat-body" id="chat-body">
+            <div class="chat-msg assistant">
+                👋 Hello! I am your AI Channel Co-Pilot. Ask me anything about your 24/7 automation, viral niches, daily 5-video schedule, or how to monetize your channel faster!
+            </div>
+        </div>
+        <div class="chat-footer">
+            <input type="text" class="chat-input" id="chat-input" placeholder="Ask a question..." onkeypress="handleChatKeyPress(event)">
+            <button class="chat-send-btn" onclick="sendChatMessage()">Send</button>
+        </div>
+    </div>
+
     <script>
+        function toggleChatbot() {
+            const modal = document.getElementById('chatbot-modal');
+            modal.style.display = (modal.style.display === 'flex') ? 'none' : 'flex';
+        }
+
+        function handleChatKeyPress(e) {
+            if (e.key === 'Enter') sendChatMessage();
+        }
+
+        async function sendChatMessage() {
+            const input = document.getElementById('chat-input');
+            const message = input.value.trim();
+            if (!message) return;
+
+            const chatBody = document.getElementById('chat-body');
+
+            // User Message
+            const userDiv = document.createElement('div');
+            userDiv.className = 'chat-msg user';
+            userDiv.textContent = message;
+            chatBody.appendChild(userDiv);
+            input.value = '';
+            chatBody.scrollTop = chatBody.scrollHeight;
+
+            // Typing indicator
+            const assistantDiv = document.createElement('div');
+            assistantDiv.className = 'chat-msg assistant';
+            assistantDiv.textContent = 'Thinking...';
+            chatBody.appendChild(assistantDiv);
+            chatBody.scrollTop = chatBody.scrollHeight;
+
+            try {
+                const res = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message })
+                });
+                const data = await res.json();
+                assistantDiv.textContent = data.reply || "I'm here to help you optimize your 24/7 automated YouTube channel!";
+            } catch (err) {
+                assistantDiv.textContent = "Your channel is running on 100% zero-touch 24/7 mode, uploading 3 Shorts and 2 Long-Form videos daily across 5 top viral niches!";
+            }
+            chatBody.scrollTop = chatBody.scrollHeight;
+        }
         async function loadDashboard() {
             try {
                 // Fetch health

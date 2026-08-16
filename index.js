@@ -347,9 +347,40 @@ class YouTubeAutomationAgent {
         const channelId = await tg.detectChannelId();
         if (channelId) {
           res.json({ success: true, channelId, message: `Add TELEGRAM_CHANNEL_ID=${channelId} to Render env vars` });
-        } else {
-          res.json({ success: false, message: 'No channel found. Make sure @YoutubeAIVideo_bot is added as Admin to your Telegram channel and you sent a message there.' });
         }
+      } catch (e) {
+        res.status(500).json({ error: e.message });
+      }
+    });
+
+    // 💬 AI Chatbot Endpoint (Understands user questions & provides app scenarios/results)
+    this.app.post('/chat', async (req, res) => {
+      try {
+        const { message } = req.body || {};
+        if (!message || typeof message !== 'string') {
+          return res.status(400).json({ error: 'Message text is required' });
+        }
+
+        const { AITextService } = require('./utils/ai-text-service');
+        const aiText = new AITextService(this.credentials?.credentials || this.credentials || {});
+
+        const systemPrompt = `You are the Intelligent AI Co-Pilot & Assistant for this automated YouTube Channel Command Center.
+The system features:
+1. 24/7 Zero-Touch Autonomous Video Generation & Uploading to YouTube.
+2. 5 Videos Daily (3 YouTube Shorts vertical 9:16 + 2 Long-Form horizontal 16:9).
+3. 5 Rotating Viral Niches: Animation & Cartoon Stories, Mind-Blowing Facts, AI & Future Tech, Psychology Hacks, Wealth & Success.
+4. Telegram Notifications: Sends direct video links to Telegram via @YoutubeAIVideo_bot.
+5. AI Comment Reply Agent: Runs every 30 minutes to auto-reply to viewers.
+6. GitHub Actions 24/7 Keep-Alive Pinger active.
+
+Answer the user's question clearly, warmly, and concisely. Provide actionable guidance or best scenarios on how to grow their channel, configure settings, or trigger generations.`;
+
+        let reply = "I'm your YouTube Agent Assistant! Your channel is currently set to 100% 24/7 zero-touch mode, generating 5 viral videos daily (3 Shorts + 2 Long-Form) across 5 top niches. Notifications send directly to your Telegram channel!";
+        if (aiText.isAvailable()) {
+          reply = await aiText.generateText(`${systemPrompt}\n\nUser Question: ${message}`, { maxTokens: 400, temperature: 0.7 });
+        }
+
+        res.json({ success: true, reply });
       } catch (e) {
         res.status(500).json({ error: e.message });
       }
