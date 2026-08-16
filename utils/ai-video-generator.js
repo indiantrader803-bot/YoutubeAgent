@@ -198,6 +198,14 @@ class AIVideoGenerator {
       if (this.gemini) {
         return await this.generateGeminiImage(prompt, imagePath);
       }
+
+      // Zero-Cost Free Visual Image Generator via Pollinations AI (returns real high quality 1080p/720p visuals)
+      const encodedPrompt = encodeURIComponent(`${prompt}, 4k ultra detailed cinematic lighting 16:9 wallpaper`);
+      const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1280&height=720&nologo=true&seed=${Math.floor(Math.random() * 100000)}`;
+      
+      this.logger.info(`Fetching Pollinations AI visual scene: ${prompt.slice(0, 30)}...`);
+      await this.downloadImage(pollinationsUrl, imagePath);
+      return imagePath;
     } catch (err) {
       this.logger.warn('Cloud image API error, using visual canvas fallback:', err.message);
     }
@@ -327,16 +335,30 @@ class AIVideoGenerator {
 
       for (let i = 0; i < slideItems.length; i++) {
         const item = slideItems[i];
-        const titleText = String(item.title).slice(0, 50).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/'/g, '&apos;');
-        const subText = String(item.subtitle).slice(0, 90).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/'/g, '&apos;');
+        const titleText = String(item.title).slice(0, 55).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/'/g, '&apos;');
+        const subText = String(item.subtitle).slice(0, 95).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/'/g, '&apos;');
+
+        // Fetch visual artwork scene via Pollinations AI for each slide item
+        const visualPrompt = `${item.title}, ${item.subtitle}, cinematic scene wallpaper`;
+        const sceneImagePath = path.join(slidesDir, `scene_${i}.jpg`);
+        let bgImageOverlay = '';
+
+        try {
+          await this.generateImage(visualPrompt, sceneImagePath);
+          const sceneBuffer = await fs.readFile(sceneImagePath);
+          const base64Img = sceneBuffer.toString('base64');
+          bgImageOverlay = `<image href="data:image/jpeg;base64,${base64Img}" width="1280" height="720" preserveAspectRatio="xMidYMid slice" opacity="0.45" />`;
+        } catch (e) {
+          // Fallback if image fetch fails
+        }
 
         const svg = `<svg width="1280" height="720" xmlns="http://www.w3.org/2000/svg">
           <rect width="1280" height="720" fill="${item.bg}"/>
-          <circle cx="640" cy="360" r="300" fill="#8b5cf6" opacity="0.12"/>
-          <rect x="80" y="80" width="1120" height="560" rx="24" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="3"/>
-          <text x="640" y="320" font-family="Arial, sans-serif" font-size="44" font-weight="bold" fill="#ffffff" text-anchor="middle">${titleText}</text>
-          <text x="640" y="410" font-family="Arial, sans-serif" font-size="24" fill="#38bdf8" text-anchor="middle">${subText}</text>
-          <text x="640" y="600" font-family="Arial, sans-serif" font-size="18" fill="#94a3b8" text-anchor="middle">YouTube AI Automation Agent • 2026</text>
+          ${bgImageOverlay}
+          <rect x="60" y="460" width="1160" height="200" rx="16" fill="rgba(15, 23, 42, 0.85)" stroke="rgba(255,255,255,0.2)" stroke-width="2"/>
+          <text x="640" y="520" font-family="Arial, sans-serif" font-size="34" font-weight="bold" fill="#ffffff" text-anchor="middle">${titleText}</text>
+          <text x="640" y="580" font-family="Arial, sans-serif" font-size="22" fill="#38bdf8" text-anchor="middle">${subText}</text>
+          <text x="640" y="635" font-family="Arial, sans-serif" font-size="16" fill="#94a3b8" text-anchor="middle">YouTube AI Autonomous Storytelling Channel • 2026</text>
         </svg>`;
 
         const slideImgPath = path.join(slidesDir, `slide_${String(i).padStart(3, '0')}.png`);
