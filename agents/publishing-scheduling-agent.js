@@ -193,12 +193,15 @@ class PublishingSchedulingAgent {
     const complianceDisclaimer = "\n\n--- \nDisclaimer: This video is created for entertainment and educational purposes in full compliance with YouTube Community Guidelines & Terms of Service.";
     const videoDescription = `${metadata.seo.description}${isShort ? '\n\n#Shorts #Viral #Trending' : ''}${complianceDisclaimer}`;
 
+    const rawTags = isShort ? [...(metadata.seo.tags || []), 'Shorts', 'Short'] : (metadata.seo.tags || []);
+    const cleanTags = Array.from(new Set(rawTags.map(t => String(t).replace(/[^a-zA-Z0-9]/g, '').trim()).filter(t => t.length > 0 && t.length < 30))).slice(0, 15);
+
     // Prepare video metadata
     const videoMetadata = {
       snippet: {
         title: videoTitle.slice(0, 100),
         description: videoDescription.slice(0, 5000),
-        tags: isShort ? [...(metadata.seo.tags || []), 'Shorts', 'Short'] : (metadata.seo.tags || []),
+        tags: cleanTags,
         categoryId: (metadata.seo.metadata?.category || 24).toString(),
         defaultLanguage: 'en',
         defaultAudioLanguage: 'en'
