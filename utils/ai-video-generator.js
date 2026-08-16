@@ -203,11 +203,11 @@ class AIVideoGenerator {
 
   async generateOpenAIImage(prompt, imagePath) {
     const response = await this.openai.images.generate({
-      model: "gpt-image-2",
+      model: "dall-e-3",
       prompt: prompt,
       n: 1,
-      size: "1536x1024",
-      quality: "high",
+      size: "1024x1024",
+      quality: "standard",
     });
 
     if (response.data[0].b64_json) {

@@ -253,10 +253,10 @@ class PublishingSchedulingAgent {
         const { runFFmpeg, checkFFmpeg } = require('../utils/ffmpeg');
         if (await checkFFmpeg()) {
           await runFFmpeg([
-            '-f', 'lavfi', '-i', 'color=c=0x0b0f19:s=1280x720:d=5',
-            '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo',
-            '-c:v', 'libx264', '-t', '5', '-pix_fmt', 'yuv420p',
-            '-c:a', 'aac', '-shortest', '-y',
+            '-f', 'lavfi', '-i', 'testsrc=size=1280x720:rate=30',
+            '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=44100',
+            '-c:v', 'libx264', '-t', '10', '-pix_fmt', 'yuv420p',
+            '-c:a', 'aac', '-b:a', '128k', '-shortest', '-y',
             targetPath
           ]);
         }

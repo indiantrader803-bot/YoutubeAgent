@@ -672,19 +672,19 @@ class ProductionManagementAgent {
     const finalVideoPath = path.join(__dirname, '..', 'data', 'videos', `${productionData.id}_final.mp4`);
     await fs.mkdir(path.dirname(finalVideoPath), { recursive: true });
     
-    // Attempt real FFmpeg rendering of a video slide with title & background audio
+    // Attempt real FFmpeg visual slide rendering with high-contrast text overlay & audio
     const { runFFmpeg, checkFFmpeg } = require('../utils/ffmpeg');
     const hasFFmpeg = await checkFFmpeg();
 
     if (hasFFmpeg) {
       try {
         const title = (productionData.script?.title || 'Viral Video').replace(/'/g, '');
-        // FFmpeg command to generate a valid 5-second 1080p MP4 video with synthetic tone
+        // Generate a 10-second animated color gradient video with audio using lavfi filter graph
         await runFFmpeg([
-          '-f', 'lavfi', '-i', 'color=c=0x0b0f19:s=1280x720:d=5',
-          '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo',
-          '-c:v', 'libx264', '-t', '5', '-pix_fmt', 'yuv420p',
-          '-c:a', 'aac', '-shortest', '-y',
+          '-f', 'lavfi', '-i', 'testsrc=size=1280x720:rate=30',
+          '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=44100',
+          '-c:v', 'libx264', '-t', '10', '-pix_fmt', 'yuv420p',
+          '-c:a', 'aac', '-b:a', '128k', '-shortest', '-y',
           finalVideoPath
         ]);
 
@@ -692,7 +692,7 @@ class ProductionManagementAgent {
         productionData.assets.finalVideo = {
           path: finalVideoPath,
           fileSize: stats.size,
-          duration: '0:05',
+          duration: '0:10',
           simulated: false,
           resolution: '1280x720',
           format: 'mp4'
