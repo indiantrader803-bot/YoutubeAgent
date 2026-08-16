@@ -282,7 +282,8 @@ class YouTubeAutomationAgent {
         const result = await this.agents.publishing.publishContent(contentId);
         res.json({ success: true, result });
       } catch (error) {
-        res.status(500).json({ success: false, error: error.message });
+        this.logger.error(`Publish error for ${req.params.contentId}:`, error);
+        res.status(500).json({ success: false, error: error.message || String(error) });
       }
     });
 
