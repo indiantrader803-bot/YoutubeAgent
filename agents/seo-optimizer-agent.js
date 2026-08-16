@@ -263,44 +263,31 @@ Keep tags under 500 characters total.`;
     description += `Whether you're a beginner or advanced, you'll find valuable insights about ${strategy.keywords.slice(0, 3).join(', ')}. `;
     description += `Perfect for ${strategy.targetAudience}.\n\n`;
     
-    // Links section
-    description += '🔗 USEFUL LINKS:\n';
-    description += `• Subscribe: [Your Channel URL]\n`;
-    description += `• Website: ${process.env.WEBSITE_URL || '[Your Website]'}\n`;
-    description += `• Social Media: ${process.env.SOCIAL_LINKS || '[Your Social Media]'}\n\n`;
-    
-    // Related videos
-    description += '📹 RELATED VIDEOS:\n';
-    description += '• [Related Video 1]\n';
-    description += '• [Related Video 2]\n';
-    description += '• [Related Video 3]\n\n';
-    
-    // Equipment/Tools (if applicable)
-    if (strategy.contentType === 'Tutorial') {
-      description += '🛠️ TOOLS & RESOURCES MENTIONED:\n';
-      description += '• [Tool/Resource 1]\n';
-      description += '• [Tool/Resource 2]\n\n';
+    // Links section (only added if actual URL env vars exist)
+    if (process.env.WEBSITE_URL || process.env.SOCIAL_LINKS) {
+      description += '🔗 USEFUL LINKS:\n';
+      if (process.env.WEBSITE_URL) description += `• Website: ${process.env.WEBSITE_URL}\n`;
+      if (process.env.SOCIAL_LINKS) description += `• Social Media: ${process.env.SOCIAL_LINKS}\n`;
+      description += '\n';
     }
     
-    // Contact/Business
-    description += '📧 BUSINESS INQUIRIES:\n';
-    description += `${process.env.BUSINESS_EMAIL || '[Your Business Email]'}\n\n`;
+    // Contact/Business (only added if actual env var exists)
+    if (process.env.BUSINESS_EMAIL) {
+      description += '📧 BUSINESS INQUIRIES:\n';
+      description += `${process.env.BUSINESS_EMAIL}\n\n`;
+    }
     
     // Tags/Hashtags
     description += '🏷️ TAGS:\n';
     const hashtags = await this.generateHashtags(strategy);
     description += hashtags.join(' ') + '\n\n';
     
-    // Disclaimer if needed
+    // Disclaimer
     description += '⚠️ DISCLAIMER:\n';
-    description += 'This video is for educational purposes only.\n\n';
+    description += 'This video is for educational and entertainment purposes in compliance with YouTube guidelines.\n\n';
     
     // Copyright
     description += `© ${new Date().getFullYear()} All Rights Reserved\n`;
-    
-    // Music credits if applicable
-    description += '\n🎵 MUSIC:\n';
-    description += 'Background music from YouTube Audio Library\n';
     
     return description;
   }
