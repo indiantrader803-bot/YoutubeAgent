@@ -707,6 +707,94 @@ class AnalyticsOptimizationAgent {
     
     return insights;
   }
+
+  // 💬 AI Comment Reply Agent implementation
+  async autoReplyToComments(maxVideos = 5) {
+    if (!this.youtube) {
+      this.logger.warn('YouTube API not ready for comment auto-reply');
+      return 0;
+    }
+
+    try {
+      this.logger.info('🤖 AI Comment Reply Agent running...');
+      const { AITextService } = require('../utils/ai-text-service');
+      const aiText = new AITextService(this.credentials?.credentials || this.credentials || {});
+
+      // Fetch recent uploaded videos
+      const videosResponse = await this.youtube.search.list({
+        part: 'snippet',
+        forMine: true,
+        type: 'video',
+        order: 'date',
+        maxResults: maxVideos
+      }).catch(() => null);
+
+      if (!videosResponse || !videosResponse.data.items.length) {
+        this.logger.info('No recent videos found for comment replies');
+        return 0;
+      }
+
+      let repliedCount = 0;
+
+      for (const item of videosResponse.data.items) {
+        const videoId = item.id.videoId;
+        
+        // Fetch top un-replied comments for this video
+        const commentThreads = await this.youtube.commentThreads.list({
+          part: 'snippet',
+          videoId: videoId,
+          maxResults: 10,
+          textFormat: 'plainText'
+        }).catch(() => null);
+
+        if (!commentThreads || !commentThreads.data.items) continue;
+
+        for (const thread of commentThreads.data.items) {
+          const topComment = thread.snippet.topLevelComment.snippet;
+          const commentId = thread.snippet.topLevelComment.id;
+          const userComment = topComment.textDisplay;
+          const authorName = topComment.authorDisplayName;
+
+          // Skip if already replied or if comment is by channel owner
+          if (thread.snippet.totalReplyCount > 0) continue;
+
+          // Generate friendly AI response using ChatGPT / Groq / Gemini
+          const prompt = `A viewer named "${authorName}" commented on your YouTube video: "${userComment}". 
+Write a warm, engaging, friendly, and appreciative reply (under 30 words) that encourages them to subscribe and stay tuned for more videos! Avoid hashtags in comment reply.`;
+
+          let replyText = "Thank you so much for watching! Boost your day and stay tuned for more awesome videos! 😊 Subscribe to join our journey! 🚀";
+          if (aiText.isAvailable()) {
+            try {
+              replyText = await aiText.generateText(prompt, { maxTokens: 100, temperature: 0.7 });
+              replyText = replyText.replace(/^["']|["']$/g, '').trim();
+            } catch (e) {
+              // Fallback to warm template reply
+            }
+          }
+
+          // Post reply on YouTube
+          await this.youtube.comments.insert({
+            part: 'snippet',
+            requestBody: {
+              snippet: {
+                parentId: commentId,
+                textOriginal: replyText
+              }
+            }
+          }).catch(err => this.logger.warn(`Failed to reply to comment ${commentId}: ${err.message}`));
+
+          repliedCount++;
+          this.logger.info(`💬 AI Replied to ${authorName}: "${replyText}"`);
+        }
+      }
+
+      this.logger.success(`AI Comment Reply Agent finished. Replied to ${repliedCount} new comments.`);
+      return repliedCount;
+    } catch (error) {
+      this.logger.error('Error in AI comment auto-reply:', error.message);
+      return 0;
+    }
+  }
 }
 
 module.exports = { AnalyticsOptimizationAgent };

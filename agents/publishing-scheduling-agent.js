@@ -170,12 +170,17 @@ class PublishingSchedulingAgent {
   async uploadToYouTube(scheduleEntry) {
     const { metadata } = scheduleEntry;
     
+    // Ensure YouTube Shorts tag for maximum organic discovery on mobile feed
+    const rawTitle = metadata.seo.title || scheduleEntry.title || 'Viral Video';
+    const shortsTitle = rawTitle.toLowerCase().includes('#shorts') ? rawTitle : `${rawTitle} #Shorts`;
+    const shortsDescription = `${metadata.seo.description}\n\n#Shorts #Viral #Trending #Animation`;
+
     // Prepare video metadata
     const videoMetadata = {
       snippet: {
-        title: metadata.seo.title,
-        description: metadata.seo.description,
-        tags: metadata.seo.tags,
+        title: shortsTitle.slice(0, 100),
+        description: shortsDescription.slice(0, 5000),
+        tags: [...(metadata.seo.tags || []), 'Shorts', 'Short', 'YouTubeShorts'],
         categoryId: metadata.seo.metadata.category.toString(),
         defaultLanguage: metadata.seo.metadata.language,
         defaultAudioLanguage: metadata.seo.metadata.language

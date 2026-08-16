@@ -43,6 +43,17 @@ class DailyAutomation {
       }, { scheduled: false })
     );
 
+    // AI Comment Reply Agent every 30 minutes
+    this.scheduledTasks.set('ai-comment-auto-reply',
+      cron.schedule('*/30 * * * *', async () => {
+        if (this.isEnabled && this.agents.analytics) {
+          await this.agents.analytics.autoReplyToComments().catch(err => {
+            this.logger.error('Error in scheduled comment reply:', err.message);
+          });
+        }
+      }, { scheduled: false })
+    );
+
     // Analytics collection at 9:00 AM daily
     this.scheduledTasks.set('daily-analytics',
       cron.schedule('0 9 * * *', async () => {
