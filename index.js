@@ -60,6 +60,12 @@ class YouTubeAutomationAgent {
       this.scheduler = new DailyAutomation(this.agents, this.db);
       await this.scheduler.initialize();
       
+      // Trigger instant zero-touch generation batch on startup
+      this.logger.info('⚡ Triggering instant initial 5-video batch generation...');
+      this.scheduler.runDailyContentGeneration().catch(err => {
+        this.logger.error('Startup batch generation error:', err);
+      });
+
       this.isInitialized = true;
       this.logger.success('YouTube Automation Agent initialized successfully!');
       
