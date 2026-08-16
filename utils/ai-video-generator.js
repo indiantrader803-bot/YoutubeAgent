@@ -190,15 +190,42 @@ class AIVideoGenerator {
   async generateImage(prompt, imagePath) {
     await fs.mkdir(path.dirname(imagePath), { recursive: true });
 
-    if (this.openai) {
-      return await this.generateOpenAIImage(prompt, imagePath);
+    try {
+      if (this.openai) {
+        return await this.generateOpenAIImage(prompt, imagePath);
+      }
+
+      if (this.gemini) {
+        return await this.generateGeminiImage(prompt, imagePath);
+      }
+    } catch (err) {
+      this.logger.warn('Cloud image API error, using visual canvas fallback:', err.message);
     }
 
-    if (this.gemini) {
-      return await this.generateGeminiImage(prompt, imagePath);
-    }
+    // High-contrast SVG banner rendering fallback
+    const titleText = prompt.slice(0, 45).replace(/'/g, "&apos;");
+    const svg = `<svg width="1280" height="720" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#0f172a"/>
+          <stop offset="50%" stop-color="#1e1b4b"/>
+          <stop offset="100%" stop-color="#311042"/>
+        </linearGradient>
+      </defs>
+      <rect width="1280" height="720" fill="url(#g)"/>
+      <circle cx="640" cy="360" r="280" fill="#8b5cf6" opacity="0.15"/>
+      <text x="640" y="340" font-family="Arial, sans-serif" font-size="44" font-weight="bold" fill="#ffffff" text-anchor="middle">${titleText}</text>
+      <text x="640" y="410" font-family="Arial, sans-serif" font-size="24" fill="#38bdf8" text-anchor="middle">YouTube AI Autonomous Channel</text>
+    </svg>`;
 
-    throw new Error('No image generation provider configured');
+    try {
+      const sharp = require('sharp');
+      await sharp(Buffer.from(svg)).png().toFile(imagePath);
+      return imagePath;
+    } catch (e) {
+      await fs.writeFile(imagePath, Buffer.from(svg));
+      return imagePath;
+    }
   }
 
   async generateOpenAIImage(prompt, imagePath) {
