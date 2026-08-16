@@ -122,12 +122,18 @@ class PublishingSchedulingAgent {
     try {
       this.logger.info(`Publishing content: ${contentId}`);
       
-      const scheduleEntry = this.publishQueue.find(entry => 
+      let scheduleEntry = this.publishQueue.find(entry => 
         entry.productionId === contentId || entry.id === contentId
       );
       
       if (!scheduleEntry) {
-        throw new Error(`Content not found in queue: ${contentId}`);
+        this.logger.info(`Fetching schedule entry ${contentId} from database...`);
+        const allSchedule = await this.db.getUpcomingSchedule().catch(() => []);
+        scheduleEntry = allSchedule.find(entry => entry.productionId === contentId || entry.id === contentId || entry.production_id === contentId);
+      }
+
+      if (!scheduleEntry) {
+        throw new Error(`Content not found in queue or DB: ${contentId}`);
       }
       
       // Upload video to YouTube
