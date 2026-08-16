@@ -252,7 +252,6 @@ class PublishingSchedulingAgent {
           await runFFmpeg([
             '-f', 'lavfi', '-i', 'color=c=0x0b0f19:s=1280x720:d=5',
             '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo',
-            '-vf', "drawtext=text='YouTube AI Automation Video':fontcolor=white:fontsize=36:x=(w-text_w)/2:y=(h-text_h)/2",
             '-c:v', 'libx264', '-t', '5', '-pix_fmt', 'yuv420p',
             '-c:a', 'aac', '-shortest', '-y',
             targetPath
