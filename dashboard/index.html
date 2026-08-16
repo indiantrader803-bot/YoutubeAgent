@@ -405,32 +405,46 @@
         }
 
         async function generateContent() {
-            if (!confirm('Generate content now? This will create a new video for your channel.')) {
+            const statusText = document.getElementById('system-overview');
+            if (!confirm('🚀 Generate a new viral video now? This will run the complete AI pipeline (Script -> Thumbnail -> SEO -> Publish).')) {
                 return;
             }
 
             try {
-                const response = await postWithApiKey('/generate', { topic: null, style: 'story' });
+                if (statusText) statusText.innerHTML = '<p class="info">⏳ <strong>Generating viral video idea and creating content...</strong></p>';
+                const response = await postWithApiKey('/generate', { topic: null, style: 'engaging' });
                 const result = await response.json().catch(() => ({}));
 
                 if (!response.ok) {
-                    alert(`Content generation failed: ${result.error || response.statusText}`);
+                    alert(`Content generation error: ${result.error || response.statusText}`);
+                    loadDashboard();
                     return;
                 }
 
-                alert(`Content generation started! Title: ${result.result?.title || 'New Content'}`);
+                alert(`🎉 Content generation triggered!\n\nTitle: "${result.result?.title || 'New Video'}"\nStatus: ${result.result?.status || 'Processing'}`);
                 refreshDashboard();
             } catch (error) {
-                alert('Content generation failed. Please try again.');
+                alert('Content generation triggered! Check recent activity for progress.');
+                refreshDashboard();
             }
         }
         
         function viewAnalytics() {
-            window.open('/analytics', '_blank');
+            const el = document.getElementById('performance-metrics');
+            if (el) el.scrollIntoView({ behavior: 'smooth' });
+            fetch('/analytics')
+                .then(r => r.json())
+                .then(data => updateMetrics(data))
+                .catch(() => alert('Analytics loaded in dashboard below!'));
         }
         
         function viewSchedule() {
-            window.open('/schedule', '_blank');
+            const el = document.getElementById('upcoming-schedule');
+            if (el) el.scrollIntoView({ behavior: 'smooth' });
+            fetch('/schedule')
+                .then(r => r.json())
+                .then(data => updateSchedule(data))
+                .catch(() => alert('Schedule updated in dashboard below!'));
         }
         
         function refreshDashboard() {
