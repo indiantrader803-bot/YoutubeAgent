@@ -580,7 +580,20 @@ class ProductionManagementAgent {
         format: 'mp4'
       };
       
-      this.logger.info('AI video assembly complete');
+      // Automated Quality Control Check
+      const qualityReport = await this.performQualityControl(productionData, finalVideoPath);
+      productionData.qualityReport = qualityReport;
+
+      const reportPath = path.join(__dirname, '..', 'data', 'production', `${productionData.id}_quality_report.json`);
+      await fs.writeFile(reportPath, JSON.stringify(qualityReport, null, 2));
+
+      if (!qualityReport.passed) {
+        this.logger.error(`Quality control failed for ${productionData.id}: ${qualityReport.criticalErrors.join(', ')}`);
+        productionData.status = 'failed';
+        return null;
+      }
+
+      this.logger.info('AI video assembly & Quality Control complete');
       return finalVideoPath;
     } catch (error) {
       this.logger.error('AI video assembly failed:', error);
@@ -722,6 +735,48 @@ class ProductionManagementAgent {
     };
     
     return finalVideoPath + '.assembly.json';
+  }
+
+  async performQualityControl(productionData, finalVideoPath) {
+    const report = {
+      passed: true,
+      timestamp: new Date().toISOString(),
+      criticalErrors: [],
+      warnings: [],
+      checks: {
+        fileExists: false,
+        validSize: false,
+        titleValid: false,
+        descriptionValid: false,
+        thumbnailValid: false
+      }
+    };
+
+    try {
+      const stats = await fs.stat(finalVideoPath);
+      report.checks.fileExists = true;
+      report.checks.validSize = stats.size > 1000;
+      if (!report.checks.validSize) {
+        report.criticalErrors.push('Video file size is suspiciously small (<1KB)');
+      }
+    } catch (e) {
+      report.criticalErrors.push(`Video file does not exist at ${finalVideoPath}`);
+    }
+
+    if (productionData.script && productionData.script.title) {
+      report.checks.titleValid = productionData.script.title.length > 5;
+    } else {
+      report.criticalErrors.push('Video title is missing or too short');
+    }
+
+    if (productionData.seo && productionData.seo.description) {
+      report.checks.descriptionValid = productionData.seo.description.length > 20;
+    } else {
+      report.warnings.push('SEO description is short');
+    }
+
+    report.passed = report.criticalErrors.length === 0;
+    return report;
   }
 }
 
