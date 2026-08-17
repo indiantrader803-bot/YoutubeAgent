@@ -1,4 +1,4 @@
-name: 24/7 Server Keep-Alive & Auto-Pinger
+name: 24/7 Server Keep-Alive & Daily Video Automation
 
 on:
   schedule:
@@ -10,8 +10,14 @@ jobs:
   ping-server:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping Live Server
+      - name: Ping Live Server & Trigger Keep-Alive
         run: |
-          echo "Pinging YouTube Automation Server..."
-          curl -s https://youtube-automation-agent-mdv0.onrender.com/ping
-          echo "Server is live and active!"
+          echo "Pinging YouTube Automation Server on Render..."
+          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" https://youtube-automation-agent-mdv0.onrender.com/ping)
+          echo "$RESPONSE"
+          
+          echo "Checking Health Endpoint..."
+          HEALTH=$(curl -s https://youtube-automation-agent-mdv0.onrender.com/health)
+          echo "$HEALTH"
+          
+          echo "✅ 24/7 Keep-Alive Ping Successful!"
