@@ -46,15 +46,30 @@ class AIVideoGenerator {
     this.elevenLabsVoiceId = credentials.elevenLabs?.voiceId || process.env.ELEVENLABS_VOICE_ID;
     
     // Azure Speech configuration
-    this.azureSpeechKey = credentials.azure?.speechKey || process.env.AZURE_SPEECH_KEY;
+    this.azureSpeechKey = credentials.azure?.speechKey || process.env.AZURE_SPEECH_REGION;
     this.azureSpeechRegion = credentials.azure?.speechRegion || process.env.AZURE_SPEECH_REGION;
+
+    // Open-Source Providers (Kokoro, Piper, Whisper, ComfyUI)
+    const { TTSProvider } = require('./tts-provider');
+    const { SubtitleProvider } = require('./subtitle-provider');
+    const { ImageProvider } = require('./image-provider');
+    this.ttsProvider = new TTSProvider();
+    this.subtitleProvider = new SubtitleProvider();
+    this.imageProvider = new ImageProvider();
   }
 
   async generateTTSAudio(text, outputPath) {
     this.logger.info('Generating TTS audio...');
     
     try {
-      // Try ElevenLabs first (higher quality)
+      // Primary local AI TTS: Kokoro (with Piper fallback)
+      return await this.ttsProvider.generate(text, outputPath);
+    } catch (err) {
+      this.logger.warn(`Local TTS Provider fallback triggered: ${err.message}`);
+    }
+
+    try {
+      // Try ElevenLabs next if configured
       if (this.elevenLabsApiKey && this.elevenLabsVoiceId) {
         return await this.generateElevenLabsTTS(text, outputPath);
       }
