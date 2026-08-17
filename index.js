@@ -378,9 +378,25 @@ The system features:
 
 Answer the user's question clearly, warmly, and concisely. Provide actionable guidance or best scenarios on how to grow their channel, configure settings, or trigger generations.`;
 
-        let reply = "I'm your YouTube Agent Assistant! Your channel is currently set to 100% 24/7 zero-touch mode, generating 5 viral videos daily (3 Shorts + 2 Long-Form) across 5 top niches. Notifications send directly to your Telegram channel!";
+        let reply = '';
         if (aiText.isAvailable()) {
           reply = await aiText.generateText(`${systemPrompt}\n\nUser Question: ${message}`, { maxTokens: 400, temperature: 0.7 });
+        } else {
+          // Dynamic Intelligent Rule-Based Engine (when no external API key is attached)
+          const lower = message.toLowerCase();
+          const schedule = await this.db.getUpcomingSchedule().catch(() => []);
+
+          if (lower.includes('schedule') || lower.includes('when') || lower.includes('upload') || lower.includes('next')) {
+            const nextItem = schedule[0];
+            const nextTime = nextItem ? new Date(nextItem.publishTime || nextItem.scheduledTime).toLocaleString() : 'Today at 2:00 PM';
+            reply = `📅 Next Scheduled Upload: ${nextTime}.\n\nYour channel is set to 24/7 autonomous mode uploading 5 videos daily (3 Shorts at 10 AM, 3 PM, 8 PM + 2 Long-Form at 12 PM, 6 PM).`;
+          } else if (lower.includes('generate') || lower.includes('animation') || lower.includes('video') || lower.includes('link') || lower.includes('view') || lower.includes('short')) {
+            reply = `🎬 You can trigger a new video generation instantly by clicking the "🚀 Generate Content" button on the dashboard toolbar! Links to rendered MP4 videos are sent directly to your Telegram channel (@YoutubeAIVideo_bot).`;
+          } else if (lower.includes('niche') || lower.includes('topic')) {
+            reply = `🔥 5 Rotating Viral Niches Active:\n1. Animation & Cartoon Stories (9:16 Short)\n2. Mind-Blowing Facts & Mysteries (16:9 Long-Form)\n3. AI & Future Tech (9:16 Short)\n4. Psychology Hacks (9:16 Short)\n5. Success & Wealth Mindset (16:9 Long-Form)`;
+          } else {
+            reply = `🤖 Hello! I'm your AI Channel Co-Pilot. Your automated channel is 100% active, generating 5 videos daily (3 Shorts + 2 Long-Form). You can view the live queue in the Schedule panel or click "Generate Content" to launch a new video batch anytime!`;
+          }
         }
 
         res.json({ success: true, reply });
