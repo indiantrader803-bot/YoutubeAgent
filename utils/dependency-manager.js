@@ -67,7 +67,7 @@ function checkDependencies() {
   const npmVer = runCmd('npm --version');
   const pythonVer = runCmd('python --version') || runCmd('python3 --version');
   const ffmpegVer = runCmd('ffmpeg -version');
-  const remotionVer = runCmd('npx remotion --version');
+  const remotionVer = runCmd('npx --no-install remotion --version') || runCmd('node -e "console.log(require(\'remotion/package.json\').version)"');
   const ytdlpVer = runCmd('yt-dlp --version');
   const piperVer = runCmd('piper --version');
 
