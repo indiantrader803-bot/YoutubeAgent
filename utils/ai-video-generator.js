@@ -320,6 +320,18 @@ class AIVideoGenerator {
     this.logger.info('Generating rich visual video with screen content...');
     
     try {
+      // 1. Try MoneyPrinterTurbo integration first
+      const { MoneyPrinterBridge } = require('./moneyprinter-bridge');
+      const bridge = new MoneyPrinterBridge();
+      if (bridge.isAvailable()) {
+        const topic = script?.title || 'Viral Story';
+        const isShort = Boolean(script?.isShort);
+        const turboResult = await bridge.generateTurboVideo(topic, isShort, outputPath);
+        if (turboResult && turboResult.path) {
+          return turboResult.path;
+        }
+      }
+
       if (this.replicate && this.replicate.auth) {
         return await this.generateReplicateVideo(script, visualAssets, audioPath, outputPath);
       }
