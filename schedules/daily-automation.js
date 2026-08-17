@@ -98,6 +98,12 @@ class DailyAutomation {
   }
 
   async runDailyContentGeneration() {
+    if (this.isGeneratingBatch) {
+      this.logger.warn('Content generation batch is already in progress; skipping duplicate run.');
+      return;
+    }
+    this.isGeneratingBatch = true;
+
     try {
       this.logger.info('Starting daily content generation (Dual Long-Form + YouTube Shorts)...');
       
@@ -172,6 +178,8 @@ class DailyAutomation {
 
       // Send notification about failure
       await this.sendFailureNotification('Daily Content Generation', error);
+    } finally {
+      this.isGeneratingBatch = false;
     }
   }
 
