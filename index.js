@@ -375,9 +375,15 @@ Answer the user's question clearly, warmly, and concisely. Provide actionable gu
 
         let reply = '';
         if (aiText.isAvailable()) {
-          reply = await aiText.generateText(`${systemPrompt}\n\nUser Question: ${message}`, { maxTokens: 400, temperature: 0.7 });
-        } else {
-          // Dynamic Intelligent Rule-Based Engine (when no external API key is attached)
+          try {
+            reply = await aiText.generateText(`${systemPrompt}\n\nUser Question: ${message}`, { maxTokens: 400, temperature: 0.7 });
+          } catch (aiErr) {
+            this.logger.warn(`AI Text generation error (${aiErr.message}); falling back to local Co-Pilot assistant.`);
+          }
+        }
+
+        if (!reply) {
+          // Dynamic Intelligent Rule-Based Engine (when API key is unavailable or quota depleted)
           const lower = message.toLowerCase();
           let schedule = [];
           if (this.db && typeof this.db.getUpcomingSchedule === 'function') {
