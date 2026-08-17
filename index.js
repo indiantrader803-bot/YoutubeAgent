@@ -379,7 +379,10 @@ Answer the user's question clearly, warmly, and concisely. Provide actionable gu
         } else {
           // Dynamic Intelligent Rule-Based Engine (when no external API key is attached)
           const lower = message.toLowerCase();
-          const schedule = await this.db.getUpcomingSchedule().catch(() => []);
+          let schedule = [];
+          if (this.db && typeof this.db.getUpcomingSchedule === 'function') {
+            schedule = await this.db.getUpcomingSchedule().catch(() => []) || [];
+          }
 
           if (lower.includes('schedule') || lower.includes('when') || lower.includes('upload') || lower.includes('next')) {
             const nextItem = schedule[0];
