@@ -826,34 +826,42 @@
 
         function updateMetrics(data) {
             const metrics = document.getElementById('performance-metrics');
-            if (data && data.totalVideos !== undefined) {
+            if (data) {
+                const nichesHtml = (data.nicheBreakdown || []).map(item => `
+                    <div class="item-row">
+                        <div class="item-info">
+                            <h4>${item.niche} (${item.format})</h4>
+                            <p>Avg Views: <strong>${item.avgViews}</strong> | CTR: <strong>${item.ctr}</strong></p>
+                        </div>
+                        <span class="badge ${item.score > 95 ? 'badge-green' : 'badge-purple'}">Score: ${item.score}/100</span>
+                    </div>
+                `).join('');
+
+                const insightsHtml = (data.insights || []).map(insight => `
+                    <div class="item-row">
+                        <div class="item-info">
+                            <h4>💡 AI Channel Insight</h4>
+                            <p>${insight}</p>
+                        </div>
+                        <span class="badge badge-purple">Optimized</span>
+                    </div>
+                `).join('');
+
                 metrics.innerHTML = `
-                    <div class="item-row">
+                    <div class="item-row" style="background: rgba(16, 185, 129, 0.1); border-color: rgba(16, 185, 129, 0.3);">
                         <div class="item-info">
-                            <h4>Total Videos Published</h4>
-                            <p>Automated Channel Growth</p>
+                            <h4>Overall Performance Score</h4>
+                            <p>Algorithmic Optimization & Audience Retention</p>
                         </div>
-                        <span class="badge badge-green">${data.totalVideos || 0} Videos</span>
+                        <span class="badge badge-green" style="font-size: 1rem; padding: 6px 14px;">${data.averagePerformanceScore || 96}% Excellent</span>
                     </div>
-                    <div class="item-row">
-                        <div class="item-info">
-                            <h4>Channel Performance Score</h4>
-                            <p>SEO & Algorithm Optimization</p>
-                        </div>
-                        <span class="badge badge-purple">${data.averagePerformanceScore || 98}% Excellent</span>
-                    </div>
-                `;
-            } else {
-                metrics.innerHTML = `
-                    <div class="item-row">
-                        <div class="item-info">
-                            <h4>Channel Monetization Engine</h4>
-                            <p>Generating daily watch time & subscribers</p>
-                        </div>
-                        <span class="badge badge-green">Active</span>
-                    </div>
+                    <h4 style="margin: 15px 0 10px 0; color: var(--text-secondary); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px;">📊 Performance by Viral Niche</h4>
+                    ${nichesHtml}
+                    <h4 style="margin: 15px 0 10px 0; color: var(--text-secondary); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.5px;">🧠 Optimization Insights</h4>
+                    ${insightsHtml}
                 `;
             }
+        }
 
             const activity = document.getElementById('recent-activity');
             activity.innerHTML = `
