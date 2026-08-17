@@ -60,13 +60,8 @@ class YouTubeAutomationAgent {
       this.scheduler = new DailyAutomation(this.agents, this.db);
       await this.scheduler.initialize();
       
-      // Trigger instant zero-touch generation batch on startup asynchronously
-      this.logger.info('⚡ Triggering instant initial 5-video batch generation...');
-      setImmediate(() => {
-        this.scheduler.runDailyContentGeneration().catch(err => {
-          this.logger.error('Startup batch generation error:', err);
-        });
-      });
+      // Scheduled automation cron tasks handle daily generation batches (or manually via dashboard button)
+      this.logger.info('⚡ Automation scheduler active — daily batch cron scheduled.');
 
       this.isInitialized = true;
       this.logger.success('YouTube Automation Agent initialized successfully!');
