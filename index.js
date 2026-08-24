@@ -241,6 +241,26 @@ class YouTubeAutomationAgent {
       }
     });
 
+    // Trigger immediate 5-video daily generation batch asynchronously
+    this.app.post('/trigger-batch', async (req, res) => {
+      try {
+        if (this.dailyAutomation.isGeneratingBatch) {
+          return res.json({ success: false, message: 'A video generation batch is already in progress!' });
+        }
+        
+        // Launch batch generation in background so response returns instantly
+        setImmediate(() => {
+          this.dailyAutomation.runDailyContentGeneration().catch(err => {
+            this.logger.error('Error running triggered generation batch:', err.message);
+          });
+        });
+
+        res.json({ success: true, message: '⚡ Asynchronous 5-video generation batch triggered! Content is generating in the background.' });
+      } catch (error) {
+        res.status(500).json({ success: false, error: error.message });
+      }
+    });
+
     // Get analytics & video performance dashboard data
     this.app.get('/analytics', async (req, res) => {
       try {

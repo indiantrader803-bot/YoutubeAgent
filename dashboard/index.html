@@ -891,12 +891,13 @@
         async function generateContent() {
             if (!confirm('🚀 Trigger an instant 5-video batch generation now?')) return;
             try {
-                document.getElementById('system-overview').innerHTML = '<p style="color: var(--accent-purple);">⏳ <strong>AI Agents generating 5 viral videos...</strong></p>';
-                const res = await fetch('/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ topic: null }) });
-                alert('🎉 Batch generation triggered! Check your Telegram channel for upload links.');
+                document.getElementById('system-overview').innerHTML = '<p style="color: var(--accent-purple);">⏳ <strong>AI Agents generating 5 viral videos in background...</strong></p>';
+                const res = await fetch('/trigger-batch', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+                const data = await res.json();
+                alert(data.message || '🎉 5-Video Batch Generation started! Processing in background.');
                 refreshDashboard();
             } catch (err) {
-                alert('Batch generation triggered! Processing in background.');
+                alert('⚡ Batch generation triggered! Processing in background.');
                 refreshDashboard();
             }
         }
