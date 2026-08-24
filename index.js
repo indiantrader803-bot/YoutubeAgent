@@ -2,6 +2,7 @@ require('dotenv').config();
 
 const express = require('express');
 const path = require('path');
+const fs = require('fs').promises;
 const { Logger } = require('./utils/logger');
 const { Database } = require('./database/db');
 const { CredentialManager } = require('./utils/credential-manager');
@@ -254,11 +255,11 @@ class YouTubeAutomationAgent {
         }
         
         // Launch batch generation in background so response returns instantly
-        setImmediate(() => {
+        setTimeout(() => {
           this.scheduler.runDailyContentGeneration().catch(err => {
             this.logger.error('Error running triggered generation batch:', err.message);
           });
-        });
+        }, 0);
 
         res.json({ success: true, message: '⚡ Asynchronous 5-video generation batch triggered! Content is generating in the background.' });
       } catch (error) {
