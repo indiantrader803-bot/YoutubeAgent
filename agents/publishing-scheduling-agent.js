@@ -249,21 +249,6 @@ class PublishingSchedulingAgent {
       const exists = await fs.stat(targetPath).then(s => s.isFile() && s.size > 0).catch(() => false);
       
       if (!exists) {
-        this.logger.info(`Synthesizing MP4 video for YouTube upload... (${targetPath})`);
-        const { runFFmpeg, checkFFmpeg } = require('../utils/ffmpeg');
-        if (await checkFFmpeg()) {
-          await runFFmpeg([
-            '-f', 'lavfi', '-i', 'color=c=0x1e1b4b:s=1280x720:r=30:d=10',
-            '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=44100:d=10',
-            '-c:v', 'libx264', '-t', '10', '-pix_fmt', 'yuv420p',
-            '-c:a', 'aac', '-b:a', '128k', '-shortest', '-y',
-            targetPath
-          ]);
-        }
-      }
-
-      const finalExists = await fs.stat(targetPath).then(s => s.isFile() && s.size > 0).catch(() => false);
-      if (!finalExists) {
         throw new Error(`video file not found: ${targetPath}`);
       }
 
