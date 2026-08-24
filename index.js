@@ -74,14 +74,15 @@ class YouTubeAutomationAgent {
   }
 
   async initializeAgents() {
+    const creds = this.credentials ? (this.credentials.credentials || this.credentials) : {};
     this.agents = {
-      strategy: new ContentStrategyAgent(this.db, this.credentials),
-      scriptWriter: new ScriptWriterAgent(this.db, this.credentials),
-      thumbnailDesigner: new ThumbnailDesignerAgent(this.db, this.credentials),
-      seoOptimizer: new SEOOptimizerAgent(this.db, this.credentials),
-      production: new ProductionManagementAgent(this.db, this.credentials),
-      publishing: new PublishingSchedulingAgent(this.db, this.credentials),
-      analytics: new AnalyticsOptimizationAgent(this.db, this.credentials)
+      strategy: new ContentStrategyAgent(this.db, creds),
+      scriptWriter: new ScriptWriterAgent(this.db, creds),
+      thumbnailDesigner: new ThumbnailDesignerAgent(this.db, creds),
+      seoOptimizer: new SEOOptimizerAgent(this.db, creds),
+      production: new ProductionManagementAgent(this.db, creds),
+      publishing: new PublishingSchedulingAgent(this.db, creds),
+      analytics: new AnalyticsOptimizationAgent(this.db, creds)
     };
 
     // Initialize each agent
