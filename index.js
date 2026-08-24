@@ -244,13 +244,17 @@ class YouTubeAutomationAgent {
     // Trigger immediate 5-video daily generation batch asynchronously
     this.app.post('/trigger-batch', async (req, res) => {
       try {
-        if (this.dailyAutomation.isGeneratingBatch) {
+        if (!this.scheduler) {
+          return res.status(503).json({ success: false, error: 'Scheduler is initializing. Try again in a few seconds.' });
+        }
+
+        if (this.scheduler.isGeneratingBatch) {
           return res.json({ success: false, message: 'A video generation batch is already in progress!' });
         }
         
         // Launch batch generation in background so response returns instantly
         setImmediate(() => {
-          this.dailyAutomation.runDailyContentGeneration().catch(err => {
+          this.scheduler.runDailyContentGeneration().catch(err => {
             this.logger.error('Error running triggered generation batch:', err.message);
           });
         });
