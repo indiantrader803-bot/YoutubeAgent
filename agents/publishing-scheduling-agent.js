@@ -83,8 +83,8 @@ class PublishingSchedulingAgent {
   async scheduleContent(productionData) {
     try {
       const finalVideo = productionData.assets?.finalVideo;
-      if (!finalVideo) {
-        this.logger.warn(`Not scheduling ${productionData.id}: no video asset was produced.`);
+      if (!finalVideo || finalVideo.simulated) {
+        this.logger.warn(`Not scheduling ${productionData.id}: video asset missing or simulated.`);
         return null;
       }
 
@@ -260,6 +260,11 @@ class PublishingSchedulingAgent {
             targetPath
           ]);
         }
+      }
+
+      const finalExists = await fs.stat(targetPath).then(s => s.isFile() && s.size > 0).catch(() => false);
+      if (!finalExists) {
+        throw new Error(`video file not found: ${targetPath}`);
       }
 
       return fsSync.createReadStream(targetPath);
