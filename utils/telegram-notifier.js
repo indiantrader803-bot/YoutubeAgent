@@ -5,7 +5,9 @@ class TelegramNotifier {
     let creds = {};
     try {
       creds = require('../config/credentials.json');
-    } catch (e) {}
+    } catch (_err) {
+      // Ignore missing file
+    }
 
     this.token = process.env.TELEGRAM_BOT_TOKEN || creds.telegram?.botToken || creds.telegram?.token;
     this.channelId = process.env.TELEGRAM_CHANNEL_ID || creds.telegram?.channelId || creds.telegram?.chatId;
