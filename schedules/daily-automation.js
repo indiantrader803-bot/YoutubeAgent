@@ -25,13 +25,13 @@ class DailyAutomation {
   }
 
   async setupScheduledTasks() {
-    // Daily content generation at 6:00 AM
+    // Daily content generation at 6:00 AM IST
     this.scheduledTasks.set('daily-content-generation', 
       cron.schedule('0 6 * * *', async () => {
         if (this.isEnabled) {
           await this.runDailyContentGeneration();
         }
-      }, { scheduled: false })
+      }, { scheduled: false, timezone: 'Asia/Kolkata' })
     );
 
     // Publishing queue processing every 15 minutes

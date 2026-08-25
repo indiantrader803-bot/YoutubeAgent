@@ -23,7 +23,7 @@ If you don't understand the distinction between an AI image tool (where you type
 A **Coding Agent** is an AI that can read, write, run, and debug code files autonomously inside your project directory:
 
 ```
-Your Plain-English Instruction ──► Agent Reads Existing Files ──► Agent Writes/Edits Code ──► Agent Runs & Tests ──�� Working Program
+Your Plain-English Instruction ──► Agent Reads Existing Files ──► Agent Writes/Edits Code ──► Agent Runs & Tests ──► Working Program
 ```
 
 ### The 3 Key Distinctions (Agents vs. Chatbots vs. Scripts):

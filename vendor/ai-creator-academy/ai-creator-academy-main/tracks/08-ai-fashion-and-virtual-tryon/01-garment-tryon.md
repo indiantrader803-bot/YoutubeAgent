@@ -19,7 +19,7 @@ To launch new designs instantly without physical photo shoots, you need to imple
 The fashion synthesis workflow uses **Garment Segmentation**, **Virtual Try-On (VTO) Diffusion**, and **Draping Fitting**:
 
 ```
-Flat Garment Photo ──► Garment Mask Extraction ──► VTO Model Alignment ──�� Timbre-Draping Synthesis
+Flat Garment Photo ──► Garment Mask Extraction ──► VTO Model Alignment ──► Timbre-Draping Synthesis
 ```
 
 * **Preserving Garment Integrity:** Unlike standard image generators that change clothing details, a VTO model uses a reference garment image. It isolates the garment, analyzes its texture, stitching, buttons, and patterns, and drapes it onto a target model's body while preserving **95%** of the original physical detail.
