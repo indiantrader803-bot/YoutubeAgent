@@ -2,9 +2,14 @@ const https = require('https');
 
 class TelegramNotifier {
   constructor() {
-    this.token = process.env.TELEGRAM_BOT_TOKEN;
-    this.channelId = process.env.TELEGRAM_CHANNEL_ID;
-    this.enabled = Boolean(this.token && this.channelId);
+    let creds = {};
+    try {
+      creds = require('../config/credentials.json');
+    } catch (e) {}
+
+    this.token = process.env.TELEGRAM_BOT_TOKEN || creds.telegram?.botToken || creds.telegram?.token;
+    this.channelId = process.env.TELEGRAM_CHANNEL_ID || creds.telegram?.channelId || creds.telegram?.chatId;
+    this.enabled = Boolean(this.token);
   }
 
   async sendMessage(text) {
