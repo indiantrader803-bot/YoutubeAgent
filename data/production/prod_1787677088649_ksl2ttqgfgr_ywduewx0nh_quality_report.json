@@ -1,0 +1,13 @@
+{
+  "passed": true,
+  "timestamp": "2026-08-25T16:58:17.066Z",
+  "criticalErrors": [],
+  "warnings": [],
+  "checks": {
+    "fileExists": true,
+    "validSize": true,
+    "titleValid": true,
+    "descriptionValid": true,
+    "thumbnailValid": false
+  }
+}

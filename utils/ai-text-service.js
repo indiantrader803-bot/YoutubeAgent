@@ -12,8 +12,8 @@ const PROVIDERS = {
   groq: {
     name: 'Groq',
     baseURL: 'https://api.groq.com/openai/v1',
-    defaultModel: 'llama-3.3-70b-versatile',
-    models: ['llama-3.3-70b-versatile', 'mixtral-8x7b-32768'],
+    defaultModel: 'openai/gpt-oss-120b',
+    models: ['openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'qwen/qwen3.6-27b'],
     envKey: 'GROQ_API_KEY',
   },
   openrouter: {
