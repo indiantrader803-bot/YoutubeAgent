@@ -1,23 +1,35 @@
-name: 24/7 Server Keep-Alive & Daily Video Automation
+name: 24/7 Serverless Daily Video Automation
 
 on:
   schedule:
-    # Run every 5 minutes 24/7 to prevent Render free tier sleeping
-    - cron: '*/5 * * * *'
+    # Run daily at 00:30 UTC (6:00 AM IST)
+    - cron: '30 0 * * *'
   workflow_dispatch:
 
 jobs:
-  ping-server:
+  run-daily-automation:
     runs-on: ubuntu-latest
     steps:
-      - name: Ping Live Server & Trigger Keep-Alive
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Dependencies & FFmpeg
         run: |
-          echo "Pinging YouTube Automation Server on Render..."
-          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" https://youtube-automation-agent-mdv0.onrender.com/ping)
-          echo "$RESPONSE"
-          
-          echo "Checking Health Endpoint..."
-          HEALTH=$(curl -s https://youtube-automation-agent-mdv0.onrender.com/health)
-          echo "$HEALTH"
-          
-          echo "✅ 24/7 Keep-Alive Ping Successful!"
+          npm ci
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Run 5-Video Daily Automation Pipeline
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+        run: |
+          node scripts/run-automation-cron.js
