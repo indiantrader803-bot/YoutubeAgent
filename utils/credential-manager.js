@@ -66,6 +66,13 @@ class CredentialManager {
         apiKey: process.env.GROQ_API_KEY,
         model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile'
       };
+      if (!this.credentials.aiProvider) {
+        this.credentials.aiProvider = {
+          provider: 'groq',
+          apiKey: process.env.GROQ_API_KEY,
+          model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile'
+        };
+      }
     }
 
     if (process.env.YOUTUBE_REFRESH_TOKEN) {
