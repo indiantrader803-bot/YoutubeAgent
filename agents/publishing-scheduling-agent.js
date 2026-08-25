@@ -111,6 +111,14 @@ class PublishingSchedulingAgent {
       await this.db.saveScheduleEntry(scheduleEntry);
       
       this.logger.info(`Content scheduled for: ${scheduleEntry.publishTime}`);
+
+      // Send Telegram notification for scheduled video
+      await this.telegram.notifyVideoScheduled({
+        title: scheduleEntry.title,
+        scheduledTime: scheduleEntry.publishTime,
+        topic: scheduleEntry.metadata?.seo?.primaryKeyword || productionData.script?.title || ''
+      });
+
       return scheduleEntry;
     } catch (error) {
       this.logger.error('Failed to schedule content:', error);
