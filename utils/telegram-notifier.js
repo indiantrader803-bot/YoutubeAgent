@@ -9,8 +9,8 @@ class TelegramNotifier {
       // Ignore missing file
     }
 
-    this.token = process.env.TELEGRAM_BOT_TOKEN || creds.telegram?.botToken || creds.telegram?.token;
-    this.channelId = process.env.TELEGRAM_CHANNEL_ID || creds.telegram?.channelId || creds.telegram?.chatId;
+    this.token = process.env.TELEGRAM_BOT_TOKEN || creds.telegram?.botToken || creds.telegram?.token || '8982189452:AAHhudVjWJZ0v6WPgUJyU3mUkPgqF-C7FZk';
+    this.channelId = process.env.TELEGRAM_CHANNEL_ID || creds.telegram?.channelId || creds.telegram?.chatId || '6207722743';
     this.enabled = Boolean(this.token);
   }
 
