@@ -204,6 +204,18 @@ class PublishingSchedulingAgent {
     const rawTags = isShort ? [...(metadata.seo.tags || []), 'Shorts', 'Short'] : (metadata.seo.tags || []);
     const cleanTags = Array.from(new Set(rawTags.map(t => String(t).replace(/[^a-zA-Z0-9]/g, '').trim()).filter(t => t.length > 0 && t.length < 30))).slice(0, 15);
 
+    // Prepare video status
+    const privacyStatus = process.env.DEFAULT_PRIVACY_STATUS || 'public';
+    const statusObj = {
+      privacyStatus,
+      selfDeclaredMadeForKids: false // Strict compliance for general audience monetization
+    };
+
+    // YouTube API only accepts publishAt when privacyStatus is 'private' and publishAt is in the future
+    if (privacyStatus === 'private' && scheduleEntry.publishTime && new Date(scheduleEntry.publishTime) > new Date()) {
+      statusObj.publishAt = scheduleEntry.publishTime;
+    }
+
     // Prepare video metadata
     const videoMetadata = {
       snippet: {
@@ -214,11 +226,7 @@ class PublishingSchedulingAgent {
         defaultLanguage: 'en',
         defaultAudioLanguage: 'en'
       },
-      status: {
-        privacyStatus: process.env.DEFAULT_PRIVACY_STATUS || 'public',
-        publishAt: scheduleEntry.publishTime,
-        selfDeclaredMadeForKids: false // Strict compliance for general audience monetization
-      }
+      status: statusObj
     };
     
     // Upload video file
