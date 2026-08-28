@@ -43,6 +43,7 @@ async function runStandaloneAutomation() {
 
   const dailyAutomation = new DailyAutomation(agents, db);
   await dailyAutomation.runDailyContentGeneration();
+  await dailyAutomation.processPublishQueue();
 
   const telegram = new TelegramNotifier();
   await telegram.sendMessage('🎉 <b>GitHub Actions 24/7 Automation Finished!</b>\n\nDaily 5-Video Batch (3 Shorts + 2 Long-Form) successfully generated & uploaded to YouTube!');
