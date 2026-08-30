@@ -45,6 +45,9 @@ class AIVideoGenerator {
     this.elevenLabsApiKey = credentials.elevenLabs?.apiKey || process.env.ELEVENLABS_API_KEY;
     this.elevenLabsVoiceId = credentials.elevenLabs?.voiceId || process.env.ELEVENLABS_VOICE_ID;
     
+    // Json2Video API configuration
+    this.json2videoApiKey = credentials.json2video?.apiKey || process.env.JSON2VIDEO_API_KEY;
+
     // Azure Speech configuration
     this.azureSpeechKey = credentials.azure?.speechKey || process.env.AZURE_SPEECH_REGION;
     this.azureSpeechRegion = credentials.azure?.speechRegion || process.env.AZURE_SPEECH_REGION;
