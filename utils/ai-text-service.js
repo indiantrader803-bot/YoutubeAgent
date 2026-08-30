@@ -37,12 +37,12 @@ const PROVIDERS = {
     models: ['mimo-v2.5-pro', 'mimo-v2.5'],
     envKey: 'MIMO_API_KEY',
   },
-  glm: {
-    name: 'GLM (Zhipu AI)',
-    baseURL: 'https://api.z.ai/api/paas/v4/',
-    defaultModel: 'glm-5',
-    models: ['glm-5', 'glm-5.1'],
-    envKey: 'GLM_API_KEY',
+  nvidia: {
+    name: 'Nvidia NIM',
+    baseURL: 'https://integrate.api.nvidia.com/v1',
+    defaultModel: 'openai/gpt-oss-20b',
+    models: ['openai/gpt-oss-20b', 'meta/llama-3.3-70b-instruct'],
+    envKey: 'NVIDIA_API_KEY',
   },
 };
 

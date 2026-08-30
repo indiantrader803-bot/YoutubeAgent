@@ -75,6 +75,14 @@ class CredentialManager {
       }
     }
 
+    if (process.env.NVIDIA_API_KEY) {
+      this.credentials.nvidia = {
+        ...(this.credentials.nvidia || {}),
+        apiKey: process.env.NVIDIA_API_KEY,
+        model: process.env.NVIDIA_MODEL || 'openai/gpt-oss-20b'
+      };
+    }
+
     if (process.env.YOUTUBE_REFRESH_TOKEN) {
       if (!this.tokens.youtube) {
         this.tokens.youtube = {};
