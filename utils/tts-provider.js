@@ -83,36 +83,59 @@ except Exception as e:
   }
 
   async generateWebFallback(text, outputPath) {
-    // Generate valid 44-byte WAV audio header with 2 seconds of 16-bit 22050Hz mono PCM audio
-    const sampleRate = 22050;
-    const numSamples = sampleRate * 2; // 2 seconds
-    const dataSize = numSamples * 2;
-    const fileSize = 36 + dataSize;
-    const header = Buffer.alloc(44);
+    try {
+      const googleTTS = require('google-tts-api');
+      const cleanText = text.replace(/[\r\n]+/g, ' ').trim();
+      
+      // Get audio base64 array for longer texts
+      const audioResults = await googleTTS.getAudioBase64(cleanText.slice(0, 400), {
+        lang: 'en',
+        slow: false,
+        host: 'https://translate.google.com',
+        timeout: 10000,
+      });
 
-    header.write('RIFF', 0);
-    header.writeUInt32LE(fileSize, 4);
-    header.write('WAVE', 8);
-    header.write('fmt ', 12);
-    header.writeUInt32LE(16, 16);
-    header.writeUInt16LE(1, 20); // PCM format
-    header.writeUInt16LE(1, 22); // Mono
-    header.writeUInt32LE(sampleRate, 24);
-    header.writeUInt32LE(sampleRate * 2, 28);
-    header.writeUInt16LE(2, 32); // Block align
-    header.writeUInt16LE(16, 34); // Bits per sample
-    header.write('data', 36);
-    header.writeUInt32LE(dataSize, 40);
+      const buffers = Array.isArray(audioResults)
+        ? audioResults.map(item => Buffer.from(item.base64, 'base64'))
+        : [Buffer.from(audioResults, 'base64')];
 
-    const pcmData = Buffer.alloc(dataSize);
-    for (let i = 0; i < numSamples; i++) {
-      const val = Math.floor(Math.sin(2 * Math.PI * 440 * (i / sampleRate)) * 8000);
-      pcmData.writeInt16LE(val, i * 2);
+      const mergedBuffer = Buffer.concat(buffers);
+      await fs.writeFile(outputPath, mergedBuffer);
+      console.log(`[TTSProvider] Natural Google Voiceover generated successfully (${mergedBuffer.length} bytes)`);
+      return outputPath;
+    } catch (err) {
+      console.warn(`[TTSProvider] Google TTS fallback error: ${err.message}. Using synthetic tone.`);
+      // Generate valid 44-byte WAV audio header with 2 seconds of 16-bit 22050Hz mono PCM audio
+      const sampleRate = 22050;
+      const numSamples = sampleRate * 2;
+      const dataSize = numSamples * 2;
+      const fileSize = 36 + dataSize;
+      const header = Buffer.alloc(44);
+
+      header.write('RIFF', 0);
+      header.writeUInt32LE(fileSize, 4);
+      header.write('WAVE', 8);
+      header.write('fmt ', 12);
+      header.writeUInt32LE(16, 16);
+      header.writeUInt16LE(1, 20);
+      header.writeUInt16LE(1, 22);
+      header.writeUInt32LE(sampleRate, 24);
+      header.writeUInt32LE(sampleRate * 2, 28);
+      header.writeUInt16LE(2, 32);
+      header.writeUInt16LE(16, 34);
+      header.write('data', 36);
+      header.writeUInt32LE(dataSize, 40);
+
+      const pcmData = Buffer.alloc(dataSize);
+      for (let i = 0; i < numSamples; i++) {
+        const val = Math.floor(Math.sin(2 * Math.PI * 440 * (i / sampleRate)) * 8000);
+        pcmData.writeInt16LE(val, i * 2);
+      }
+
+      const wavBuffer = Buffer.concat([header, pcmData]);
+      await fs.writeFile(outputPath, wavBuffer);
+      return outputPath;
     }
-
-    const wavBuffer = Buffer.concat([header, pcmData]);
-    await fs.writeFile(outputPath, wavBuffer);
-    return outputPath;
   }
 
   async list_voices() {

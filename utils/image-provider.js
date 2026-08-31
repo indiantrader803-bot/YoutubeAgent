@@ -89,7 +89,8 @@ class ImageProvider {
   }
 
   async generateStockFallback(prompt, imagePath) {
-    const encodedPrompt = encodeURIComponent(`${prompt}, 4k ultra detailed cinematic visual wallpaper`);
+    const cleanPrompt = String(prompt).replace(/[^a-zA-Z0-9\s]/g, '').slice(0, 80);
+    const encodedPrompt = encodeURIComponent(`${cleanPrompt} 4k digital visual artwork wallpaper`);
     const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1280&height=720&nologo=true&seed=${Math.floor(Math.random() * 100000)}`;
 
     try {
@@ -97,16 +98,18 @@ class ImageProvider {
         method: 'GET',
         url: pollinationsUrl,
         responseType: 'arraybuffer',
-        timeout: 15000,
-        headers: { 'User-Agent': 'Mozilla/5.0' }
+        timeout: 25000,
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
       });
       await fs.writeFile(imagePath, Buffer.from(response.data));
+      console.log(`[ImageProvider] Pollinations visual background generated successfully`);
       return imagePath;
     } catch (e) {
       // High-contrast SVG banner rendering fallback
       const titleText = prompt.slice(0, 45).replace(/'/g, "&apos;");
       const svg = `<svg width="1280" height="720" xmlns="http://www.w3.org/2000/svg">
         <rect width="1280" height="720" fill="#0f172a"/>
+        <circle cx="640" cy="360" r="300" fill="#1e1b4b" opacity="0.8"/>
         <text x="640" y="340" font-family="Arial" font-size="44" font-weight="bold" fill="#ffffff" text-anchor="middle">${titleText}</text>
       </svg>`;
       const sharp = require('sharp');
