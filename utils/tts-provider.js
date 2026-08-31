@@ -55,7 +55,8 @@ import soundfile as sf
 try:
     from kokoro_onnx import Kokoro
     kokoro = Kokoro("models/kokoro/kokoro-v0_19.onnx", "models/kokoro/voices.json")
-    samples, sample_rate = kokoro.create("${text.replace(/"/g, '\\"')}", voice="${this.voice}", speed=${this.speed}, lang="en-us")
+    text_content = """${text.replace(/"""/g, '\"\"\"')}"""
+    samples, sample_rate = kokoro.create(text_content, voice="${this.voice}", speed=${this.speed}, lang="en-us")
     sf.write(sys.argv[1], samples, sample_rate)
     print("KOKORO_SUCCESS")
 except Exception as e:
