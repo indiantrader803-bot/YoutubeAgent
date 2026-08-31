@@ -368,15 +368,15 @@ class AIVideoGenerator {
         const subText = String(item.subtitle).slice(0, 95).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/'/g, '&apos;');
 
         // Fetch visual artwork scene via Pollinations AI for each slide item
-        const visualPrompt = `${item.title}, ${item.subtitle}, cinematic scene wallpaper`;
+        const visualPrompt = `${item.title}, ${item.subtitle}, 4k digital visual artwork wallpaper`;
         const sceneImagePath = path.join(slidesDir, `scene_${i}.jpg`);
         let bgImageOverlay = '';
 
         try {
-          await this.generateImage(visualPrompt, sceneImagePath);
+          await this.imageProvider.generate(visualPrompt, sceneImagePath);
           const sceneBuffer = await fs.readFile(sceneImagePath);
           const base64Img = sceneBuffer.toString('base64');
-          bgImageOverlay = `<image href="data:image/jpeg;base64,${base64Img}" width="1280" height="720" preserveAspectRatio="xMidYMid slice" opacity="0.45" />`;
+          bgImageOverlay = `<image href="data:image/jpeg;base64,${base64Img}" width="1280" height="720" preserveAspectRatio="xMidYMid slice" opacity="0.65" />`;
         } catch (e) {
           // Fallback if image fetch fails
         }
