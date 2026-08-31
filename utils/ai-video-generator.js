@@ -323,15 +323,14 @@ class AIVideoGenerator {
     this.logger.info('Generating rich visual video with screen content...');
     
     try {
-      // 1. Try MoneyPrinterTurbo integration first
-      const { MoneyPrinterBridge } = require('./moneyprinter-bridge');
-      const bridge = new MoneyPrinterBridge();
-      if (bridge.isAvailable()) {
-        const topic = script?.title || 'Viral Story';
+      // 1. Try VUZA AI Video Creator engine integration first
+      const { VUZABridge } = require('./vuza-bridge');
+      const vuza = new VUZABridge();
+      if (vuza.isAvailable()) {
         const isShort = Boolean(script?.isShort);
-        const turboResult = await bridge.generateTurboVideo(topic, isShort, outputPath);
-        if (turboResult && turboResult.path) {
-          return turboResult.path;
+        const vuzaResult = await vuza.generateVUZAVideo(script, isShort, outputPath);
+        if (vuzaResult && vuzaResult.path) {
+          return vuzaResult.path;
         }
       }
 
