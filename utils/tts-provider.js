@@ -21,16 +21,16 @@ class TTSProvider {
       try {
         return await this.generateKokoro(text, outputPath);
       } catch (err) {
-        console.warn(`[TTSProvider] Kokoro generation failed (${err.message}). Falling back to ${this.fallback}...`);
+        console.warn(`[TTSProvider] Kokoro generation unavailable. Using natural Google voiceover fallback...`);
       }
     }
 
-    // Try Fallback Provider: Piper
+    // Try Natural Google Voiceover Fallback directly
     try {
-      return await this.generatePiper(text, outputPath);
-    } catch (err) {
-      console.warn(`[TTSProvider] Piper fallback failed (${err.message}). Using web/simulated TTS fallback...`);
       return await this.generateWebFallback(text, outputPath);
+    } catch (err) {
+      console.warn(`[TTSProvider] Google TTS fallback failed (${err.message}). Trying Piper...`);
+      return await this.generatePiper(text, outputPath);
     }
   }
 
