@@ -1,0 +1,9 @@
+node_modules/
+vendor/
+data/
+uploads/
+scratch/
+dist/
+build/
+coverage/
+models/

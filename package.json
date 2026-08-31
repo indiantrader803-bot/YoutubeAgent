@@ -18,7 +18,7 @@
     "agent:publishing": "node agents/publishing-scheduling-agent.js",
     "agent:analytics": "node agents/analytics-optimization-agent.js",
     "credentials:setup": "node utils/credential-manager.js setup",
-    "lint": "eslint ."
+    "lint": "eslint . --ignore-pattern vendor/"
   },
   "dependencies": {
     "@genspark/cli": "^1.6.0",
