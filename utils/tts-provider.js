@@ -88,21 +88,19 @@ except Exception as e:
       const googleTTS = require('google-tts-api');
       const cleanText = text.replace(/[\r\n]+/g, ' ').trim();
       
-      // Get audio base64 array for longer texts
-      const audioResults = await googleTTS.getAudioBase64(cleanText.slice(0, 400), {
+      // Use getAllAudioBase64 for long multi-sentence text
+      const audioResults = await googleTTS.getAllAudioBase64(cleanText.slice(0, 2000), {
         lang: 'en',
         slow: false,
         host: 'https://translate.google.com',
-        timeout: 10000,
+        timeout: 15000,
+        splitPunct: '.?!,'
       });
 
-      const buffers = Array.isArray(audioResults)
-        ? audioResults.map(item => Buffer.from(item.base64, 'base64'))
-        : [Buffer.from(audioResults, 'base64')];
-
+      const buffers = audioResults.map(item => Buffer.from(item.base64, 'base64'));
       const mergedBuffer = Buffer.concat(buffers);
       await fs.writeFile(outputPath, mergedBuffer);
-      console.log(`[TTSProvider] Natural Google Voiceover generated successfully (${mergedBuffer.length} bytes)`);
+      console.log(`[TTSProvider] Natural Google Voiceover generated successfully (${mergedBuffer.length} bytes, ${buffers.length} segments)`);
       return outputPath;
     } catch (err) {
       console.warn(`[TTSProvider] Google TTS fallback error: ${err.message}. Using synthetic tone.`);
