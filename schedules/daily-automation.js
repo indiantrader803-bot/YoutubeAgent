@@ -111,11 +111,11 @@ class DailyAutomation {
       
       // Daily batch split: 3 YouTube Shorts (vertical 9:16) + 2 Long-Form videos (horizontal 16:9)
       const dailyBatch = [
-        { niche: 'Animation Cartoon Story', type: 'animation', isShort: true },
-        { niche: 'Mind Blowing Facts & Mysteries', type: 'explainer', isShort: false },
-        { niche: 'AI & Future Technology Revolutions', type: 'informative', isShort: true },
-        { niche: 'Crazy Psychology Facts & Hacks', type: 'engaging', isShort: true },
-        { niche: 'Inspiring Success & Wealth Mindset Stories', type: 'story', isShort: false }
+        { niche: 'Viral Anime & Cartoon Animated Stories', type: 'animation', isShort: true },
+        { niche: 'Stock Market & Crypto Trading Secrets', type: 'educational', isShort: false },
+        { niche: 'Top Trending Viral News & Mysteries', type: 'trending', isShort: true },
+        { niche: 'High Stakes Trading & Wealth Creation', type: 'informative', isShort: true },
+        { niche: 'Epic Cartoon Animated Adventure Story', type: 'story', isShort: false }
       ];
 
       for (let i = 0; i < dailyBatch.length; i++) {

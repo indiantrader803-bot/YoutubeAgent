@@ -42,7 +42,7 @@ class VUZABridge {
 sys.path.insert(0, r"${this.vuzaDir}")
 from video_engine import VideoEngine, VideoSettings
 
-async function main():
+async def main():
     engine = VideoEngine(r"${path.dirname(outputPath).replace(/\\/g, '\\\\')}")
     with open(r"${scriptJsonPath.replace(/\\/g, '\\\\')}", "r", encoding="utf-8") as f:
         script_data = json.load(f)
