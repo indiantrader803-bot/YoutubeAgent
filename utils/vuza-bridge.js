@@ -58,9 +58,7 @@ async def main():
     with open(r"${scriptJsonPath.replace(/\\/g, '\\\\')}", "r", encoding="utf-8") as f:
         script_data = json.load(f)
     
-    # Download rich visual background artwork for every scene
-    from aesthetic_scraper import PexelsScraper
-    scraper = PexelsScraper(output_dir=os.path.join(engine.output_dir, "media"))
+    # Download 4K visual background artwork for every scene
     import urllib.request
 
     for i, item in enumerate(script_data):
