@@ -58,9 +58,25 @@ async def main():
     with open(r"${scriptJsonPath.replace(/\\/g, '\\\\')}", "r", encoding="utf-8") as f:
         script_data = json.load(f)
     
-    # Generate speech narration
+    # Download rich visual background artwork for every scene
+    from aesthetic_scraper import PexelsScraper
+    scraper = PexelsScraper(output_dir=os.path.join(engine.output_dir, "media"))
+    import urllib.request
+
     for i, item in enumerate(script_data):
         await engine.generate_voiceover(item["sentence"], i, voice="en-US-ChristopherNeural")
+        kw = item["keyword"]
+        scene_dir = os.path.join(engine.output_dir, kw)
+        os.makedirs(scene_dir, exist_ok=True)
+        img_file = os.path.join(scene_dir, f"scene_{i}.jpg")
+        
+        prompt = item["sentence"][:60].replace(" ", "%20")
+        pol_url = f"https://image.pollinations.ai/prompt/{prompt}%204k%20digital%20wallpaper?width=1280&height=720&nologo=true"
+        try:
+            urllib.request.urlretrieve(pol_url, img_file)
+            item["_files"] = [img_file]
+        except Exception as e:
+            print(f"Image fetch error: {e}")
 
     settings = VideoSettings()
     settings.ratio = "9:16" if ${isShort ? 'True' : 'False'} else "16:9"
