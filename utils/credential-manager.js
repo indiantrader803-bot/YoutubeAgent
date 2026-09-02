@@ -89,6 +89,12 @@ class CredentialManager {
       this.credentials.pexels = { apiKey: key };
     }
 
+    if (process.env.REPLICATE_API_TOKEN || (this.credentials.replicate && this.credentials.replicate.apiKey)) {
+      const key = process.env.REPLICATE_API_TOKEN || this.credentials.replicate.apiKey;
+      process.env.REPLICATE_API_TOKEN = key;
+      this.credentials.replicate = { apiKey: key };
+    }
+
     if (process.env.YOUTUBE_REFRESH_TOKEN) {
       if (!this.tokens.youtube) {
         this.tokens.youtube = {};
