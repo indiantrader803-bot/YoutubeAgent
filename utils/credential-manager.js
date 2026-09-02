@@ -83,6 +83,12 @@ class CredentialManager {
       };
     }
 
+    if (process.env.PEXELS_API_KEY || (this.credentials.pexels && this.credentials.pexels.apiKey)) {
+      const key = process.env.PEXELS_API_KEY || this.credentials.pexels.apiKey;
+      process.env.PEXELS_API_KEY = key;
+      this.credentials.pexels = { apiKey: key };
+    }
+
     if (process.env.YOUTUBE_REFRESH_TOKEN) {
       if (!this.tokens.youtube) {
         this.tokens.youtube = {};
