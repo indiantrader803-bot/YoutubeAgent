@@ -40,7 +40,18 @@ class VUZABridge {
 
     const runnerScript = `import sys, os, json, asyncio
 sys.path.insert(0, r"${this.vuzaDir}")
-from video_engine import VideoEngine, VideoSettings
+from video_engine import VideoEngine
+try:
+    from app import VideoSettings
+except Exception:
+    class VideoSettings:
+        def __init__(self):
+            self.ratio = "9:16"
+            self.subtitles = True
+            self.subtitle_style = "high_retention"
+            self.filter = "none"
+            self.vibe = "general"
+            self.watermark = False
 
 async def main():
     engine = VideoEngine(r"${path.dirname(outputPath).replace(/\\/g, '\\\\')}")
@@ -51,10 +62,9 @@ async def main():
     for i, item in enumerate(script_data):
         await engine.generate_voiceover(item["sentence"], i, voice="en-US-ChristopherNeural")
 
-    settings = VideoSettings() if 'VideoSettings' in globals() else None
-    if settings:
-        settings.ratio = "9:16" if ${isShort ? 'True' : 'False'} else "16:9"
-        settings.subtitles = True
+    settings = VideoSettings()
+    settings.ratio = "9:16" if ${isShort ? 'True' : 'False'} else "16:9"
+    settings.subtitles = True
 
     # Assemble video using MoviePy
     output_video = engine.create_video(script_data, engine.output_dir, media_type="image", settings=settings)
