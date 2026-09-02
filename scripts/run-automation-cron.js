@@ -11,6 +11,7 @@ const { PublishingSchedulingAgent } = require('../agents/publishing-scheduling-a
 const { AnalyticsOptimizationAgent } = require('../agents/analytics-optimization-agent');
 const { VideoGenerationMonitorAgent } = require('../agents/video-generation-monitor-agent');
 const { DedicatedYouTubeAutomationMonitorAgent } = require('../agents/youtube-automation-monitor-agent');
+const { YouTubeStudioAnalyticsMonitorAgent } = require('../agents/youtube-studio-analytics-monitor-agent');
 const { DailyAutomation } = require('../schedules/daily-automation');
 const { Logger } = require('../utils/logger');
 const { TelegramNotifier } = require('../utils/telegram-notifier');
@@ -37,7 +38,8 @@ async function runStandaloneAutomation() {
     publishing: new PublishingSchedulingAgent(db, creds),
     analytics: new AnalyticsOptimizationAgent(db, creds),
     videoMonitor: new VideoGenerationMonitorAgent(db, creds),
-    youtubeOverseer: new DedicatedYouTubeAutomationMonitorAgent(db, creds)
+    youtubeOverseer: new DedicatedYouTubeAutomationMonitorAgent(db, creds),
+    studioMonitor: new YouTubeStudioAnalyticsMonitorAgent(db, creds)
   };
 
   for (const [name, agent] of Object.entries(agents)) {

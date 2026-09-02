@@ -375,7 +375,7 @@ class AIVideoGenerator {
           await this.imageProvider.generate(visualPrompt, sceneImagePath);
           const sceneBuffer = await fs.readFile(sceneImagePath);
           const base64Img = sceneBuffer.toString('base64');
-          bgImageOverlay = `<image href="data:image/jpeg;base64,${base64Img}" width="1280" height="720" preserveAspectRatio="xMidYMid slice" opacity="0.65" />`;
+          bgImageOverlay = `<image href="data:image/jpeg;base64,${base64Img}" width="1280" height="720" preserveAspectRatio="xMidYMid slice" opacity="0.90" />`;
         } catch (e) {
           // Fallback if image fetch fails
         }

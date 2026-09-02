@@ -90,8 +90,8 @@ class ImageProvider {
 
   async generateStockFallback(prompt, imagePath) {
     const cleanPrompt = String(prompt).replace(/[^a-zA-Z0-9\s]/g, '').slice(0, 80);
-    const encodedPrompt = encodeURIComponent(`${cleanPrompt} 4k digital visual artwork wallpaper`);
-    const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1280&height=720&nologo=true&seed=${Math.floor(Math.random() * 100000)}`;
+    const encodedPrompt = encodeURIComponent(`${cleanPrompt} 4k vibrant 3d anime animation artwork character scene`);
+    const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1280&height=720&nologo=true&model=flux&seed=${Math.floor(Math.random() * 100000)}`;
 
     try {
       const response = await axios({
@@ -102,7 +102,7 @@ class ImageProvider {
         headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)' }
       });
       await fs.writeFile(imagePath, Buffer.from(response.data));
-      console.log(`[ImageProvider] Pollinations visual background generated successfully`);
+      console.log(`[ImageProvider] Pollinations 4K Anime Visual background generated successfully`);
       return imagePath;
     } catch (e) {
       // High-contrast SVG banner rendering fallback
