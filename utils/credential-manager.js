@@ -95,6 +95,12 @@ class CredentialManager {
       this.credentials.replicate = { apiKey: key };
     }
 
+    if (process.env.ELEVENLABS_API_KEY || (this.credentials.elevenlabs && this.credentials.elevenlabs.apiKey)) {
+      const key = process.env.ELEVENLABS_API_KEY || this.credentials.elevenlabs.apiKey;
+      process.env.ELEVENLABS_API_KEY = key;
+      this.credentials.elevenlabs = { apiKey: key, voiceId: (this.credentials.elevenlabs && this.credentials.elevenlabs.voiceId) || '21m00Tcm4TlvDq8ikWAM' };
+    }
+
     if (process.env.YOUTUBE_REFRESH_TOKEN) {
       if (!this.tokens.youtube) {
         this.tokens.youtube = {};
