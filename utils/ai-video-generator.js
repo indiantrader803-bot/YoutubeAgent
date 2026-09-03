@@ -42,8 +42,8 @@ class AIVideoGenerator {
     }
     
     // ElevenLabs configuration
-    this.elevenLabsApiKey = credentials.elevenLabs?.apiKey || process.env.ELEVENLABS_API_KEY;
-    this.elevenLabsVoiceId = credentials.elevenLabs?.voiceId || process.env.ELEVENLABS_VOICE_ID;
+    this.elevenLabsApiKey = credentials.elevenLabs?.apiKey || credentials.elevenlabs?.apiKey || process.env.ELEVENLABS_API_KEY;
+    this.elevenLabsVoiceId = credentials.elevenLabs?.voiceId || credentials.elevenlabs?.voiceId || process.env.ELEVENLABS_VOICE_ID || '21m00Tcm4TlvDq8ikWAM';
     
     // Json2Video API configuration
     this.json2videoApiKey = credentials.json2video?.apiKey || process.env.JSON2VIDEO_API_KEY;
@@ -56,43 +56,59 @@ class AIVideoGenerator {
     const { TTSProvider } = require('./tts-provider');
     const { SubtitleProvider } = require('./subtitle-provider');
     const { ImageProvider } = require('./image-provider');
+    const { PexelsVideoProvider } = require('./pexels-video-provider');
+    const { VideoAssembler } = require('./video-assembler');
+
     this.ttsProvider = new TTSProvider();
     this.subtitleProvider = new SubtitleProvider();
     this.imageProvider = new ImageProvider();
+    this.pexelsVideoProvider = new PexelsVideoProvider(credentials.pexels?.apiKey || process.env.PEXELS_API_KEY);
+    this.videoAssembler = new VideoAssembler();
   }
 
   async generateTTSAudio(text, outputPath) {
     this.logger.info('Generating TTS audio...');
     
+    // 1. ElevenLabs (Professional Studio Voiceover)
+    if (this.elevenLabsApiKey && this.elevenLabsVoiceId) {
+      try {
+        this.logger.info('Using ElevenLabs TTS for studio quality narration...');
+        return await this.generateElevenLabsTTS(text, outputPath);
+      } catch (err) {
+        this.logger.warn(`ElevenLabs TTS failed, trying fallbacks: ${err.message}`);
+      }
+    }
+
+    // 2. OpenAI TTS
+    if (this.openai) {
+      try {
+        this.logger.info('Using OpenAI TTS fallback...');
+        return await this.generateOpenAITTS(text, outputPath);
+      } catch (err) {
+        this.logger.warn(`OpenAI TTS fallback failed: ${err.message}`);
+      }
+    }
+
+    // 3. Gemini native TTS (free tier)
+    if (this.gemini) {
+      try {
+        this.logger.info('Using Gemini TTS fallback...');
+        return await this.generateGeminiTTS(text, outputPath);
+      } catch (err) {
+        this.logger.warn(`Gemini TTS fallback failed: ${err.message}`);
+      }
+    }
+
+    // 4. Open-source local TTS (Kokoro / Piper)
     try {
-      // Primary local AI TTS: Kokoro (with Piper fallback)
+      this.logger.info('Using local TTS provider fallback...');
       return await this.ttsProvider.generate(text, outputPath);
     } catch (err) {
       this.logger.warn(`Local TTS Provider fallback triggered: ${err.message}`);
     }
 
-    try {
-      // Try ElevenLabs next if configured
-      if (this.elevenLabsApiKey && this.elevenLabsVoiceId) {
-        return await this.generateElevenLabsTTS(text, outputPath);
-      }
-      
-      // Fallback to OpenAI TTS
-      if (this.openai) {
-        return await this.generateOpenAITTS(text, outputPath);
-      }
-
-      // Fallback to Gemini native TTS (free tier)
-      if (this.gemini) {
-        return await this.generateGeminiTTS(text, outputPath);
-      }
-
-      // Final fallback to simulation
-      return await this.simulateTTSGeneration(text, outputPath);
-    } catch (error) {
-      this.logger.error('TTS generation failed:', error);
-      throw error;
-    }
+    // Final fallback to simulation
+    return await this.simulateTTSGeneration(text, outputPath);
   }
 
   async generateElevenLabsTTS(text, outputPath) {
@@ -184,10 +200,6 @@ class AIVideoGenerator {
     this.logger.info(`Generating ${count} visual assets with style: ${style}`);
 
     try {
-      if (!this.openai && !this.gemini) {
-        return await this.simulateVisualAssets(prompt, style, count);
-      }
-
       const enhancedPrompt = this.enhanceVisualPrompt(prompt, style);
       const localPaths = [];
 
@@ -200,32 +212,46 @@ class AIVideoGenerator {
       this.logger.info(`Generated ${localPaths.length} visual assets`);
       return localPaths;
     } catch (error) {
-      this.logger.error('Visual asset generation failed:', error);
-      return await this.simulateVisualAssets(prompt, style, count);
+      this.logger.error('Visual asset generation failed, generating fallback image:', error.message);
+      const fallbackPath = path.join(__dirname, '..', 'data', 'assets', `visual_fallback_${Date.now()}.png`);
+      try {
+        await this.imageProvider.generate(prompt, fallbackPath);
+        return [fallbackPath];
+      } catch (e) {
+        this.logger.warn(`Fallback image generation failed: ${e.message}`);
+        return await this.simulateVisualAssets(prompt, style, count);
+      }
     }
   }
 
   async generateImage(prompt, imagePath) {
     await fs.mkdir(path.dirname(imagePath), { recursive: true });
 
-    try {
-      if (this.openai) {
+    // 1. Try OpenAI
+    if (this.openai) {
+      try {
         return await this.generateOpenAIImage(prompt, imagePath);
+      } catch (err) {
+        this.logger.warn('OpenAI image generation failed, trying fallback:', err.message);
       }
+    }
 
-      if (this.gemini) {
+    // 2. Try Gemini
+    if (this.gemini) {
+      try {
         return await this.generateGeminiImage(prompt, imagePath);
+      } catch (err) {
+        this.logger.warn('Gemini image generation failed, trying fallback:', err.message);
       }
+    }
 
-      // Zero-Cost Free Visual Image Generator via Pollinations AI (returns real high quality 1080p/720p visuals)
-      const encodedPrompt = encodeURIComponent(`${prompt}, 4k ultra detailed cinematic lighting 16:9 wallpaper`);
-      const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1280&height=720&nologo=true&seed=${Math.floor(Math.random() * 100000)}`;
-      
-      this.logger.info(`Fetching Pollinations AI visual scene: ${prompt.slice(0, 30)}...`);
-      await this.downloadImage(pollinationsUrl, imagePath);
+    // 3. Try ImageProvider (Pollinations AI / ComfyUI)
+    try {
+      this.logger.info(`Fetching AI visual scene for prompt: ${prompt.slice(0, 30)}...`);
+      await this.imageProvider.generate(prompt, imagePath);
       return imagePath;
     } catch (err) {
-      this.logger.warn('Cloud image API error, using visual canvas fallback:', err.message);
+      this.logger.warn('ImageProvider failed, using visual canvas fallback:', err.message);
     }
 
     // High-contrast SVG banner rendering fallback
@@ -320,92 +346,122 @@ class AIVideoGenerator {
   }
 
   async generateVideo(script, visualAssets, audioPath, outputPath) {
-    this.logger.info('Generating rich visual video with screen content...');
-    
+    this.logger.info('Generating dynamic video with real stock footage and AI visual scenes...');
+
+    const tempDir = path.join(path.dirname(outputPath), `temp_render_${Date.now()}`);
+    await fs.mkdir(tempDir, { recursive: true });
+
     try {
-      // 1. Try VUZA AI Video Creator engine integration first
-      const { VUZABridge } = require('./vuza-bridge');
-      const vuza = new VUZABridge();
-      if (vuza.isAvailable()) {
-        const isShort = Boolean(script?.isShort);
-        const vuzaResult = await vuza.generateVUZAVideo(script, isShort, outputPath);
-        if (vuzaResult && vuzaResult.path) {
-          return vuzaResult.path;
-        }
-      }
-
-      if (this.replicate && this.replicate.auth) {
-        return await this.generateReplicateVideo(script, visualAssets, audioPath, outputPath);
-      }
-      
-      const slidesDir = path.join(path.dirname(outputPath), `slides_${Date.now()}`);
-      await fs.mkdir(slidesDir, { recursive: true });
-
-      const title = (script?.title || 'Viral Video Story').replace(/'/g, '');
+      const isShort = Boolean(script?.isShort || script?.video_type === 'shorts');
+      const title = script?.title || 'Featured Story';
       const sections = script?.mainContent?.sections || [
         { title: 'Introduction', content: ['Welcome to our deep dive story today.'] },
         { title: 'Key Insights', content: ['Unlocking the mystery step by step.'] },
         { title: 'Conclusion & Next Steps', content: ['Subscribe for daily viral updates.'] }
       ];
 
-      const slideItems = [
-        { title: title, subtitle: 'YOUTUBE AI FEATURED STORY', bg: '#0f172a' },
-        ...sections.map((s, idx) => ({
-          title: `Section ${idx + 1}: ${s.title || 'Overview'}`,
-          subtitle: Array.isArray(s.content) ? s.content[0] : (typeof s.content === 'string' ? s.content : 'Discover amazing insights below.'),
-          bg: idx % 2 === 0 ? '#1e1b4b' : '#311042'
-        })),
-        { title: '✨ Thanks for Watching! ✨', subtitle: 'Subscribe to our channel for daily viral updates', bg: '#030712' }
-      ];
+      // 1. Calculate total duration from audio file or estimate from script
+      let totalDuration = await this.videoAssembler.getDuration(audioPath);
+      if (!totalDuration || totalDuration < 5) {
+        totalDuration = this.calculateScriptDuration(script) || (sections.length * 8);
+      }
+      this.logger.info(`Target video duration: ${totalDuration.toFixed(1)}s for ${sections.length} sections`);
 
-      const sharp = require('sharp');
-      const stills = [];
+      // Allocate duration per section
+      const minPerSection = 4;
+      const baseSectionDuration = Math.max(minPerSection, totalDuration / sections.length);
 
-      for (let i = 0; i < slideItems.length; i++) {
-        const item = slideItems[i];
-        const titleText = String(item.title).slice(0, 55).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/'/g, '&apos;');
-        const subText = String(item.subtitle).slice(0, 95).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/'/g, '&apos;');
+      const segmentClips = [];
 
-        // Fetch visual artwork scene via Pollinations AI for each slide item
-        const visualPrompt = `${item.title}, ${item.subtitle}, 4k digital visual artwork wallpaper`;
-        const sceneImagePath = path.join(slidesDir, `scene_${i}.jpg`);
-        let bgImageOverlay = '';
+      for (let i = 0; i < sections.length; i++) {
+        const sec = sections[i];
+        const secTitle = sec.title || `Part ${i + 1}`;
+        const secSubtitle = Array.isArray(sec.content) ? sec.content[0] : (typeof sec.content === 'string' ? sec.content : '');
+        const secDuration = sec.duration ? Math.min(sec.duration, baseSectionDuration * 1.5) : baseSectionDuration;
 
-        try {
-          await this.imageProvider.generate(visualPrompt, sceneImagePath);
-          const sceneBuffer = await fs.readFile(sceneImagePath);
-          const base64Img = sceneBuffer.toString('base64');
-          bgImageOverlay = `<image href="data:image/jpeg;base64,${base64Img}" width="1280" height="720" preserveAspectRatio="xMidYMid slice" opacity="0.90" />`;
-        } catch (e) {
-          // Fallback if image fetch fails
+        let mediaSourcePath = null;
+
+        // Step A: Attempt to fetch real HD stock video footage from Pexels
+        if (this.pexelsVideoProvider.isConfigured()) {
+          try {
+            const pexelsResult = await this.pexelsVideoProvider.fetchVideoForSection(sec, i, tempDir, {
+              topic: title,
+              isShort
+            });
+            if (pexelsResult && pexelsResult.clipPath) {
+              mediaSourcePath = pexelsResult.clipPath;
+            }
+          } catch (pErr) {
+            this.logger.warn(`Pexels fetch failed for section ${i + 1}: ${pErr.message}`);
+          }
         }
 
-        const svg = `<svg width="1280" height="720" xmlns="http://www.w3.org/2000/svg">
-          <rect width="1280" height="720" fill="${item.bg}"/>
-          ${bgImageOverlay}
-          <rect x="60" y="460" width="1160" height="200" rx="16" fill="rgba(15, 23, 42, 0.85)" stroke="rgba(255,255,255,0.2)" stroke-width="2"/>
-          <text x="640" y="520" font-family="Arial, sans-serif" font-size="34" font-weight="bold" fill="#ffffff" text-anchor="middle">${titleText}</text>
-          <text x="640" y="580" font-family="Arial, sans-serif" font-size="22" fill="#38bdf8" text-anchor="middle">${subText}</text>
-          <text x="640" y="635" font-family="Arial, sans-serif" font-size="16" fill="#94a3b8" text-anchor="middle">YouTube AI Autonomous Storytelling Channel • 2026</text>
-        </svg>`;
+        // Step B: If no stock video clip, use visualAssets if available or generate AI image
+        if (!mediaSourcePath) {
+          if (visualAssets && visualAssets[i] && await fs.stat(visualAssets[i]).then(() => true).catch(() => false)) {
+            mediaSourcePath = visualAssets[i];
+          } else {
+            const visualPrompt = `${secTitle}, ${secSubtitle}, cinematic 4k wallpaper, photorealistic detailed atmospheric`;
+            const sceneImgPath = path.join(tempDir, `ai_scene_${i}.jpg`);
+            try {
+              await this.imageProvider.generate(visualPrompt, sceneImgPath);
+              mediaSourcePath = sceneImgPath;
+            } catch (imgErr) {
+              this.logger.warn(`Image generation failed for section ${i + 1}: ${imgErr.message}`);
+            }
+          }
+        }
 
-        const slideImgPath = path.join(slidesDir, `slide_${String(i).padStart(3, '0')}.png`);
-        await sharp(Buffer.from(svg)).png().toFile(slideImgPath);
-        stills.push(slideImgPath);
+        // Step C: Fallback to solid graphic if still nothing
+        if (!mediaSourcePath) {
+          const fallbackImg = path.join(tempDir, `fallback_${i}.png`);
+          const sharp = require('sharp');
+          const fallbackW = isShort ? 1080 : 1920;
+          const fallbackH = isShort ? 1920 : 1080;
+          const bgSvg = `<svg width="${fallbackW}" height="${fallbackH}"><rect width="${fallbackW}" height="${fallbackH}" fill="#0f172a"/></svg>`;
+          await sharp(Buffer.from(bgSvg)).png().toFile(fallbackImg);
+          mediaSourcePath = fallbackImg;
+        }
+
+        // Step D: Create sleek modern glassmorphism lower-third overlay banner
+        const overlayPath = path.join(tempDir, `overlay_${i}.png`);
+        await this.videoAssembler.createLowerThirdOverlay({
+          title: secTitle,
+          subtitle: secSubtitle,
+          badge: `SECTION 0${i + 1} • INSIGHT`,
+          isShort
+        }, overlayPath);
+
+        // Step E: Normalize this segment (scale to 1080p, trim/loop, burn overlay)
+        const segmentOutPath = path.join(tempDir, `segment_${String(i).padStart(2, '0')}.mp4`);
+        this.logger.info(`Rendering segment ${i + 1}/${sections.length} (${secDuration.toFixed(1)}s)...`);
+        await this.videoAssembler.normalizeSegment(mediaSourcePath, secDuration, segmentOutPath, {
+          overlayPath,
+          isShort
+        });
+
+        segmentClips.push({
+          path: segmentOutPath,
+          duration: secDuration
+        });
       }
 
-      // Stitch slides into video using FFmpeg
-      const videoOnlyPath = outputPath.replace('.mp4', '_visual.mp4');
-      await this.renderSlidesToVideo(stills, 12, videoOnlyPath);
+      // Step F: Concatenate segments with smooth crossfade
+      this.logger.info(`Concatenating ${segmentClips.length} segments with cinematic transitions...`);
+      const concatenatedVideoPath = path.join(tempDir, 'concatenated.mp4');
+      await this.videoAssembler.concatenateSegments(segmentClips, concatenatedVideoPath);
 
-      // Add audio track (or synthetic narration tone if audioPath missing)
-      await this.addAudioToVideo(videoOnlyPath, audioPath, outputPath);
-      await this.cleanupDirectory(slidesDir).catch(() => {});
+      // Step G: Mux with narration audio track
+      this.logger.info('Muxing narration audio with final video...');
+      await this.videoAssembler.muxAudio(concatenatedVideoPath, audioPath, outputPath);
 
+      this.logger.info(`Video successfully produced: ${outputPath}`);
       return outputPath;
     } catch (error) {
       this.logger.error('Video generation failed:', error);
       return await this.simulateVideoGeneration(script, visualAssets, audioPath, outputPath);
+    } finally {
+      await this.cleanupDirectory(tempDir).catch(() => {});
     }
   }
 
