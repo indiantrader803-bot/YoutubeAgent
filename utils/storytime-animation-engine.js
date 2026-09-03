@@ -136,7 +136,14 @@ class StorytimeAnimationEngine {
       webpackOverride: (config) => config
     });
 
+    const isTrading = /trading|crypto|forex|stock|candlestick|chart|breakout|pattern|entry/i.test(
+      (script?.title || '') + ' ' + (script?.topic || '') + ' ' + (script?.videoStyle || '')
+    );
+    const compositionId = isTrading ? 'TradingVideo' : 'StorytimeVideo';
+
     const compositionProps = {
+      title: script?.title || 'SECRET ENTRY STRATEGY 🚀',
+      strategyType: script?.strategyType || 'Bull Flag Breakout',
       scenes,
       isShort
     };
@@ -144,7 +151,7 @@ class StorytimeAnimationEngine {
     // 4. Select Composition
     const composition = await selectComposition({
       serveUrl: bundleLocation,
-      id: 'StorytimeVideo',
+      id: compositionId,
       inputProps: compositionProps
     });
 
