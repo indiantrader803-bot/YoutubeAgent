@@ -111,11 +111,11 @@ class DailyAutomation {
       
       // Daily batch split: 3 YouTube Shorts (vertical 9:16) + 2 Long-Form videos (horizontal 16:9)
       const dailyBatch = [
-        { niche: 'Viral Anime & Cartoon Animated Stories', type: 'animation', isShort: true },
-        { niche: 'Stock Market & Crypto Trading Secrets', type: 'educational', isShort: false },
-        { niche: 'Top Trending Viral News & Mysteries', type: 'trending', isShort: true },
-        { niche: 'High Stakes Trading & Wealth Creation', type: 'informative', isShort: true },
-        { niche: 'Epic Cartoon Animated Adventure Story', type: 'story', isShort: false }
+        { niche: '2D Cartoon School Life & Backbencher Comedy', type: 'animation', isShort: true },
+        { niche: 'Viral Anime & Cartoon Funny Dialogue Skit', type: 'animation', isShort: true },
+        { niche: 'Crypto & Stock Market Cartoon Trading Meme', type: 'animation', isShort: true },
+        { niche: '2D Storytime Cartoon Comedy Episode', type: 'story', isShort: false },
+        { niche: 'Indian School & College Stereotypes Animated Story', type: 'story', isShort: false }
       ];
 
       for (let i = 0; i < dailyBatch.length; i++) {

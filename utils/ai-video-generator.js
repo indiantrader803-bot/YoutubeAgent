@@ -58,12 +58,14 @@ class AIVideoGenerator {
     const { ImageProvider } = require('./image-provider');
     const { PexelsVideoProvider } = require('./pexels-video-provider');
     const { VideoAssembler } = require('./video-assembler');
+    const { StorytimeAnimationEngine } = require('./storytime-animation-engine');
 
     this.ttsProvider = new TTSProvider();
     this.subtitleProvider = new SubtitleProvider();
     this.imageProvider = new ImageProvider();
     this.pexelsVideoProvider = new PexelsVideoProvider(credentials.pexels?.apiKey || process.env.PEXELS_API_KEY);
     this.videoAssembler = new VideoAssembler();
+    this.storytimeEngine = new StorytimeAnimationEngine();
   }
 
   async generateTTSAudio(text, outputPath) {
@@ -346,6 +348,19 @@ class AIVideoGenerator {
   }
 
   async generateVideo(script, visualAssets, audioPath, outputPath) {
+    const isShort = Boolean(script?.isShort || script?.video_type === 'shorts');
+    const isStorytime = script?.videoStyle === 'storytime' || script?.style === 'cartoon' || process.env.VIDEO_MODE !== 'stock';
+
+    // 1. Try 2D Cartoon Storytime Animation Engine (Not Your Type / Lil Yash Style)
+    if (isStorytime && this.storytimeEngine) {
+      try {
+        this.logger.info('🚀 Launching 2D Cartoon Storytime Studio (Not Your Type / Lil Yash Animation Engine)...');
+        return await this.storytimeEngine.renderStorytimeVideo(script, audioPath, outputPath, { isShort });
+      } catch (storyErr) {
+        this.logger.warn(`Storytime animation engine fallback (${storyErr.message}). Using Pexels stock video assembler...`);
+      }
+    }
+
     this.logger.info('Generating dynamic video with real stock footage and AI visual scenes...');
 
     const tempDir = path.join(path.dirname(outputPath), `temp_render_${Date.now()}`);
@@ -893,22 +908,18 @@ class AIVideoGenerator {
     }
   }
 
-  async generateThumbnail(script, style = "ethereal") {
-    this.logger.info('Generating custom thumbnail...');
+  async generateThumbnail(script, style = "cartoon") {
+    this.logger.info('Generating custom 2D Cartoon Storytime thumbnail...');
 
     try {
-      if (!this.openai && !this.gemini) {
-        return await this.simulateThumbnailGeneration(script, style);
-      }
-
-      const prompt = `YouTube thumbnail for "${script.title}", ${style} style, eye-catching, high contrast text, professional design, clickable, engaging`;
+      const prompt = `YouTube thumbnail for 2D cartoon storytime "${script.title}", funny anime character shock expression, vibrant cartoon background, comic style, high contrast clickbait, engaging 4k`;
       const thumbnailPath = path.join(__dirname, '..', 'uploads', 'thumbnails', `thumbnail_${Date.now()}.png`);
 
       await this.generateImage(prompt, thumbnailPath);
 
       return {
         path: thumbnailPath,
-        dimensions: { width: 1536, height: 1024 },
+        dimensions: { width: 1280, height: 720 },
         fileSize: await this.getFileSize(thumbnailPath)
       };
     } catch (error) {

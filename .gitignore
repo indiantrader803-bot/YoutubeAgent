@@ -63,13 +63,14 @@ build/
 *.mkv
 *.avi
 
-# Image files (except examples)
+# Image files (except examples and assets)
 *.jpg
 *.jpeg
 *.png
 *.gif
 !examples/*.png
 !examples/*.jpg
+!assets/**
 
 # Backup files
 *.backup

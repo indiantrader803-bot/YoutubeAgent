@@ -85,11 +85,14 @@ class ScriptWriterAgent {
         duration: this.estimateDuration(mainContent),
         tone: template.tone,
         pacing: template.pacing,
+        videoStyle: 'storytime',
+        style: 'cartoon',
         keywords: strategy.keywords,
         metadata: {
           strategy: strategy,
           generatedAt: new Date().toISOString(),
-          version: '1.1'
+          version: '2.0',
+          videoStyle: 'storytime'
         }
       };
 
@@ -160,11 +163,14 @@ Avoid fabricated statistics, unsupported claims, and fake urgency.`;
         duration: this.estimateDuration({ sections }),
         tone: template.tone,
         pacing: template.pacing,
+        videoStyle: 'storytime',
+        style: 'cartoon',
         keywords: strategy.keywords || [],
         metadata: {
           strategy,
           generatedAt: new Date().toISOString(),
-          version: '1.0',
+          version: '2.0',
+          videoStyle: 'storytime',
           generationSource: 'ai'
         }
       };
