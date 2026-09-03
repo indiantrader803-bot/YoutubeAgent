@@ -243,8 +243,8 @@ class YouTubeAutomationAgent {
       }
     });
 
-    // Trigger immediate 5-video daily generation batch asynchronously
-    this.app.post('/trigger-batch', async (req, res) => {
+    // Trigger immediate 5-video daily generation batch asynchronously (supports both POST and GET for Uptime monitors)
+    const handleBatchTrigger = async (req, res) => {
       try {
         if (!this.scheduler) {
           return res.status(503).json({ success: false, error: 'Scheduler is initializing. Try again in a few seconds.' });
@@ -265,7 +265,11 @@ class YouTubeAutomationAgent {
       } catch (error) {
         res.status(500).json({ success: false, error: error.message });
       }
-    });
+    };
+
+    this.app.post('/trigger-batch', handleBatchTrigger);
+    this.app.get('/trigger-batch', handleBatchTrigger);
+    this.app.get('/cron', handleBatchTrigger);
 
     // Get analytics & video performance dashboard data
     this.app.get('/analytics', async (req, res) => {
