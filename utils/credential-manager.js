@@ -16,8 +16,8 @@ class CredentialManager {
 
   async initialize() {
     try {
-      await this.loadCredentials();
       await this.loadTokens();
+      await this.loadCredentials();
       return true;
     } catch (error) {
       this.logger.error('Failed to initialize credentials:', error);
