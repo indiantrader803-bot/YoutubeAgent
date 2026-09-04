@@ -269,9 +269,9 @@ class SystemTest {
 
     let missingFileRejected = false;
     try {
-      await agent.getVideoStream(path.join(__dirname, 'data', 'missing-placeholder.mp4'));
+      await agent.getVideoStream(path.join(__dirname, 'data', `non-existent-test-${Date.now()}.mp4`));
     } catch (error) {
-      missingFileRejected = /video file not found/.test(error.message);
+      missingFileRejected = /video file not found/i.test(error.message);
     }
 
     if (!missingFileRejected) {

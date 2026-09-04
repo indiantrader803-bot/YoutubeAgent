@@ -4,17 +4,17 @@ module.exports = [
   {
     ignores: [
       'node_modules/**',
+      'vendor/**',
+      'freellm-apis-list/**',
+      'remotion/**',
+      'dashboard/**',
+      'assets/**',
       'coverage/**',
       'logs/**',
       'temp/**',
       'tmp/**',
       'uploads/**',
-      'data/assets/**',
-      'data/audio/**',
-      'data/captions/**',
-      'data/scripts/**',
-      'data/videos/**',
-      'data/thumbnails/**'
+      'data/**'
     ]
   },
   js.configs.recommended,
