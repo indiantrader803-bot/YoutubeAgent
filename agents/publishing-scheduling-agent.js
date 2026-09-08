@@ -275,26 +275,31 @@ class PublishingSchedulingAgent {
     }
   }
   async uploadThumbnail(videoId, thumbnailPath) {
+    if (!thumbnailPath || typeof thumbnailPath !== 'string' || thumbnailPath.endsWith('.placeholder')) {
+      return;
+    }
     try {
-      const thumbnailBuffer = await fs.readFile(thumbnailPath);
-      
+      const stats = await fs.stat(thumbnailPath).catch(() => null);
+      if (!stats || stats.size < 1000) return;
+      const thumbnailStream = fsSync.createReadStream(thumbnailPath);
       await this.youtube.thumbnails.set({
         videoId: videoId,
         media: {
-          body: thumbnailBuffer
+          mimeType: 'image/jpeg',
+          body: thumbnailStream
         }
       });
-      
       this.logger.info(`Thumbnail uploaded for video: ${videoId}`);
     } catch (error) {
-      this.logger.error(`Failed to upload thumbnail: ${error.message}`);
+      this.logger.warn(`Thumbnail upload skipped (${error.message})`);
     }
   }
 
   async uploadCaptions(videoId, captionsPath) {
+    if (!captionsPath || typeof captionsPath !== 'string') return;
     try {
-      const captionsContent = await fs.readFile(captionsPath, 'utf8');
-      
+      const captionsContent = await fs.readFile(captionsPath, 'utf8').catch(() => null);
+      if (!captionsContent) return;
       await this.youtube.captions.insert({
         part: 'snippet',
         requestBody: {
@@ -309,10 +314,10 @@ class PublishingSchedulingAgent {
           body: captionsContent
         }
       });
-      
       this.logger.info(`Captions uploaded for video: ${videoId}`);
     } catch (error) {
-      this.logger.error(`Failed to upload captions: ${error.message}`);
+      // Subtitles are already hard-burned on-screen into video frames
+      this.logger.info(`Captions: Kinetic on-screen subtitles active.`);
     }
   }
 

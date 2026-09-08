@@ -419,7 +419,13 @@ class Database {
     
     return rows.map(row => ({
       ...row,
-      metadata: JSON.parse(row.metadata || '{}')
+      productionId: row.production_id || row.productionId,
+      publishTime: row.publish_time || row.publishTime,
+      error: row.error_message || row.error,
+      youtubeId: row.youtube_id || row.youtubeId,
+      youtubeUrl: row.youtube_url || row.youtubeUrl,
+      publishedAt: row.published_at || row.publishedAt,
+      metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata || '{}') : (row.metadata || {})
     }));
   }
 
@@ -436,7 +442,13 @@ class Database {
     
     return rows.map(row => ({
       ...row,
-      metadata: JSON.parse(row.metadata || '{}')
+      productionId: row.production_id || row.productionId,
+      publishTime: row.publish_time || row.publishTime,
+      error: row.error_message || row.error,
+      youtubeId: row.youtube_id || row.youtubeId,
+      youtubeUrl: row.youtube_url || row.youtubeUrl,
+      publishedAt: row.published_at || row.publishedAt,
+      metadata: typeof row.metadata === 'string' ? JSON.parse(row.metadata || '{}') : (row.metadata || {})
     }));
   }
 
