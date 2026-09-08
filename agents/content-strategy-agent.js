@@ -368,21 +368,18 @@ Avoid fabricated claims and unsupported numbers.`;
 
   getEvergreenFallbackTopics() {
     return [
-      'Time Management Strategies That Actually Work',
-      'Beginner Mistakes to Avoid When Learning a New Skill',
-      'How to Start a Side Project With Zero Budget',
-      'Simple Habits That Improve Focus and Productivity',
-      'How to Learn Anything Faster Using Proven Study Techniques',
-      'Practical Ways to Save Money Every Month',
-      'How Artificial Intelligence Is Changing Everyday Life',
-      'The Science of Building Habits That Stick',
-      'How to Give a Presentation People Actually Remember',
-      'Getting Started With Investing: A Beginner Roadmap',
-      'Digital Minimalism: Reclaiming Your Attention',
-      'How to Negotiate Anything: Tactics That Work',
-      'The Psychology of Procrastination and How to Beat It',
-      'Remote Work Productivity: Setting Up for Success',
-      'How to Read More Books Without Finding Extra Time'
+      'When Teacher Announces a Surprise Test 😱 (Storytime Cartoon)',
+      'Backbencher vs Topper During School Viva Exam 😂 (2D Animation)',
+      'Secret Bull Flag & Breakout Trading Strategy 🚀 (Candlestick Analysis)',
+      'Last Minute Exam Preparation with Backbenchers (Comedy Animation)',
+      'Crypto Trader Buying at the All-Time High Peak 📉 (Trading Meme)',
+      'When Strict Indian Parents Check Your Report Card 😂',
+      'The Science Lab Practical Disaster in School (Storytime Comedy)',
+      'High Win-Rate Support and Resistance Entry Strategy 📈',
+      'Group Study Session with Friends in a Nutshell 😂 (2D Animation)',
+      'Order Block & Liquidity Sweep Trading Secret 💸',
+      'School Attendance Shortage Comedy Skit (Not Your Type Style)',
+      'How to Spot False Breakouts in Stock and Crypto Markets 🎯'
     ];
   }
 
