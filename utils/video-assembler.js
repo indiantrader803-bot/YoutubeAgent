@@ -262,13 +262,18 @@ class VideoAssembler {
 
     const tempMux = outputPath === videoPath ? outputPath.replace(/\.mp4$/i, '_muxed.mp4') : outputPath;
 
+    // Explicitly map Video from input 0 (0:v:0) and Audio from input 1 (1:a:0)
+    // Add audio volume boost and clean AAC encoding
     await runFFmpeg([
       '-y',
       '-i', videoPath,
       '-i', audioPath,
+      '-map', '0:v:0',
+      '-map', '1:a:0',
       '-c:v', 'copy',
       '-c:a', 'aac',
       '-b:a', '192k',
+      '-af', 'volume=1.8',
       '-shortest',
       tempMux
     ]);

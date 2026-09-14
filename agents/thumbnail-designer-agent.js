@@ -204,35 +204,122 @@ class ThumbnailDesignerAgent {
   }
 
   async createThumbnail(concept) {
-    // Create a base thumbnail using Sharp
     const width = 1280;
     const height = 720;
-    
     const outputPath = path.join(__dirname, '..', 'uploads', 'thumbnails', `thumbnail_${Date.now()}.png`);
-    
-    // Create gradient background
-    const svg = `
-      <svg width="${width}" height="${height}">
-        <defs>
-          <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" style="stop-color:${this.hexToRgb(concept.colors.primary)};stop-opacity:1" />
-            <stop offset="100%" style="stop-color:${this.hexToRgb(concept.colors.secondary)};stop-opacity:1" />
-          </linearGradient>
-        </defs>
-        <rect width="${width}" height="${height}" fill="url(#gradient)" />
-      </svg>
-    `;
-    
-    await sharp(Buffer.from(svg))
-      .resize(width, height)
-      .png()
-      .toFile(outputPath);
-    
-    return outputPath;
+    await fs.mkdir(path.dirname(outputPath), { recursive: true });
+
+    const isTrading = /trading|crypto|forex|stock|candlestick|chart|breakout|pattern|entry/i.test(
+      (concept.title || '') + ' ' + (concept.primaryText || '') + ' ' + (concept.secondaryText || '')
+    );
+
+    if (isTrading) {
+      // Pro Candlestick Trading Graphic Thumbnail
+      const tradingSvg = Buffer.from(`
+        <svg width="${width}" height="${height}">
+          <defs>
+            <linearGradient id="darkBg" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#0a0e1a"/>
+              <stop offset="50%" stop-color="#111827"/>
+              <stop offset="100%" stop-color="#051e24"/>
+            </linearGradient>
+            <filter id="neonGlow" x="-30%" y="-30%" width="160%" height="160%">
+              <feDropShadow dx="0" dy="0" stdDeviation="8" flood-color="#22C55E" flood-opacity="0.9"/>
+            </filter>
+            <filter id="titleShadow" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="4" dy="8" stdDeviation="6" flood-color="#000000" flood-opacity="0.9"/>
+            </filter>
+          </defs>
+
+          <rect width="${width}" height="${height}" fill="url(#darkBg)"/>
+          <line x1="0" y1="180" x2="1280" y2="180" stroke="#1f2937" stroke-width="2"/>
+          <line x1="0" y1="360" x2="1280" y2="360" stroke="#1f2937" stroke-width="2"/>
+          <line x1="0" y1="540" x2="1280" y2="540" stroke="#1f2937" stroke-width="2"/>
+          
+          <line x1="800" y1="300" x2="800" y2="500" stroke="#EF4444" stroke-width="4"/>
+          <rect x="780" y="340" width="40" height="120" rx="4" fill="#EF4444"/>
+          <line x1="880" y1="220" x2="880" y2="450" stroke="#22C55E" stroke-width="4"/>
+          <rect x="860" y="260" width="40" height="140" rx="4" fill="#22C55E"/>
+          <line x1="960" y1="160" x2="960" y2="380" stroke="#22C55E" stroke-width="4"/>
+          <rect x="940" y="200" width="40" height="150" rx="4" fill="#22C55E"/>
+          <line x1="1040" y1="80" x2="1040" y2="280" stroke="#22C55E" stroke-width="6" filter="url(#neonGlow)"/>
+          <rect x="1015" y="120" width="50" height="130" rx="4" fill="#22C55E" filter="url(#neonGlow)"/>
+          <path d="M 740 380 Q 900 240 1060 110" fill="none" stroke="#FACC15" stroke-width="8" stroke-dasharray="12,8"/>
+
+          <rect x="60" y="60" width="380" height="70" rx="18" fill="#16A34A" filter="url(#titleShadow)"/>
+          <text x="250" y="110" font-family="Impact, Arial Black, sans-serif" font-size="38" font-weight="900" fill="#FFFFFF" text-anchor="middle">📈 95% WIN RATE</text>
+
+          <text x="60" y="260" font-family="Impact, Arial Black, sans-serif" font-size="92" font-weight="900" fill="#FACC15" stroke="#000000" stroke-width="12" paint-order="stroke fill" filter="url(#titleShadow)">SECRET ENTRY</text>
+          <text x="60" y="370" font-family="Impact, Arial Black, sans-serif" font-size="86" font-weight="900" fill="#FFFFFF" stroke="#000000" stroke-width="12" paint-order="stroke fill" filter="url(#titleShadow)">STRATEGY 🚀</text>
+
+          <rect x="60" y="460" width="440" height="90" rx="20" fill="#2563EB" stroke="#FFFFFF" stroke-width="4" filter="url(#titleShadow)"/>
+          <text x="280" y="522" font-family="Impact, Arial Black, sans-serif" font-size="44" font-weight="900" fill="#FFFFFF" text-anchor="middle">🎯 1:3 RISK REWARD</text>
+        </svg>
+      `);
+      await sharp(tradingSvg).png().toFile(outputPath);
+      return outputPath;
+    }
+
+    // Pro 2D Cartoon Storytime Thumbnail with Character Sprite
+    const bgPath = path.join(__dirname, '..', 'assets', 'backgrounds', 'classroom.png');
+    const heroPath = path.join(__dirname, '..', 'assets', 'characters', 'hero_shocked.png');
+
+    try {
+      const bgBuffer = await sharp(bgPath).resize(width, height, { fit: 'cover' }).toBuffer();
+      const heroBuffer = await sharp(heroPath).resize(540, 540, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } }).toBuffer();
+
+      const titleClean = String(concept.primaryText || 'SURPRISE TEST').toUpperCase().slice(0, 20);
+      const subClean = String(concept.secondaryText || 'MUST WATCH').toUpperCase().slice(0, 24);
+
+      const titleSvg = Buffer.from(`
+        <svg width="${width}" height="${height}">
+          <defs>
+            <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="4" dy="8" stdDeviation="6" flood-color="#000000" flood-opacity="0.9"/>
+            </filter>
+            <linearGradient id="yellowGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stop-color="#FFF500"/>
+              <stop offset="100%" stop-color="#FF9900"/>
+            </linearGradient>
+          </defs>
+
+          <!-- Top Badge -->
+          <rect x="50" y="60" width="380" height="65" rx="15" fill="#E11D48" filter="url(#shadow)"/>
+          <text x="240" y="105" font-family="Impact, Arial Black, sans-serif" font-size="36" font-weight="900" fill="#FFFFFF" text-anchor="middle">🔥 100% RELATABLE</text>
+
+          <!-- Main Catchy Title -->
+          <text x="60" y="260" font-family="Impact, Arial Black, sans-serif" font-size="92" font-weight="900" fill="url(#yellowGrad)" stroke="#000000" stroke-width="12" paint-order="stroke fill" filter="url(#shadow)">${titleClean}!</text>
+          <text x="60" y="370" font-family="Impact, Arial Black, sans-serif" font-size="78" font-weight="900" fill="#FFFFFF" stroke="#000000" stroke-width="10" paint-order="stroke fill" filter="url(#shadow)">${subClean} 😂</text>
+          
+          <!-- Bottom Punchline Hook -->
+          <rect x="50" y="460" width="460" height="80" rx="20" fill="#FACC15" stroke="#000000" stroke-width="6" filter="url(#shadow)"/>
+          <text x="280" y="518" font-family="Impact, Arial Black, sans-serif" font-size="40" font-weight="900" fill="#000000" text-anchor="middle">BACKBENCHER HACK 😱</text>
+        </svg>
+      `);
+
+      await sharp(bgBuffer)
+        .composite([
+          { input: heroBuffer, top: 120, left: 720 },
+          { input: titleSvg, top: 0, left: 0 }
+        ])
+        .png()
+        .toFile(outputPath);
+
+      return outputPath;
+    } catch (err) {
+      this.logger.warn(`Pro thumbnail composite fallback: ${err.message}`);
+      const fallbackSvg = `
+        <svg width="${width}" height="${height}">
+          <rect width="${width}" height="${height}" fill="#1e1b4b"/>
+          <text x="640" y="360" font-family="Arial, sans-serif" font-size="64" font-weight="bold" fill="#ffffff" text-anchor="middle">${concept.title || 'VIRAL STORY'}</text>
+        </svg>
+      `;
+      await sharp(Buffer.from(fallbackSvg)).png().toFile(outputPath);
+      return outputPath;
+    }
   }
 
   hexToRgb(color) {
-    // Color name to hex mapping
     const colors = {
       'blue': '#0066CC',
       'red': '#CC0000',
@@ -246,58 +333,11 @@ class ThumbnailDesignerAgent {
       'dark blue': '#003366',
       'gold': '#FFD700'
     };
-    
     return colors[color] || '#000000';
   }
 
-  async addTextOverlay(imagePath, concept) {
-    const outputPath = path.join(__dirname, '..', 'uploads', 'thumbnails', `thumbnail_final_${Date.now()}.png`);
-    
-    // Create text overlay SVG
-    const textSvg = `
-      <svg width="1280" height="720">
-        <style>
-          .primary { 
-            fill: ${concept.colors.accent === 'white' ? 'white' : 'black'}; 
-            font-size: 120px; 
-            font-weight: bold; 
-            font-family: Arial, sans-serif;
-            text-anchor: middle;
-          }
-          .secondary { 
-            fill: ${concept.colors.accent}; 
-            font-size: 60px; 
-            font-weight: bold; 
-            font-family: Arial, sans-serif;
-            text-anchor: middle;
-          }
-          .shadow {
-            fill: black;
-            opacity: 0.5;
-          }
-        </style>
-        
-        <!-- Shadow -->
-        <text x="642" y="302" class="primary shadow">${concept.primaryText}</text>
-        <text x="642" y="402" class="secondary shadow">${concept.secondaryText}</text>
-        
-        <!-- Main text -->
-        <text x="640" y="300" class="primary">${concept.primaryText}</text>
-        <text x="640" y="400" class="secondary">${concept.secondaryText}</text>
-      </svg>
-    `;
-    
-    const textOverlay = await sharp(Buffer.from(textSvg)).png().toBuffer();
-    
-    await sharp(imagePath)
-      .composite([{
-        input: textOverlay,
-        top: 0,
-        left: 0
-      }])
-      .toFile(outputPath);
-    
-    return outputPath;
+  async addTextOverlay(imagePath, _concept) {
+    return imagePath;
   }
 
   async optimizeForYouTube(imagePath) {

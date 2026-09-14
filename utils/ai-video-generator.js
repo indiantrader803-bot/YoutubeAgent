@@ -857,7 +857,19 @@ class AIVideoGenerator {
       ? outputPath.replace(/\.mp4$/i, '_muxed.mp4')
       : outputPath;
 
-    await runFFmpeg(['-y', '-i', videoPath, '-i', audioPath, '-c:v', 'copy', '-c:a', 'aac', '-shortest', muxPath]);
+    await runFFmpeg([
+      '-y',
+      '-i', videoPath,
+      '-i', audioPath,
+      '-map', '0:v:0',
+      '-map', '1:a:0',
+      '-c:v', 'copy',
+      '-c:a', 'aac',
+      '-b:a', '192k',
+      '-af', 'volume=1.8',
+      '-shortest',
+      muxPath
+    ]);
 
     if (muxPath !== outputPath) {
       await fs.rename(muxPath, outputPath);
