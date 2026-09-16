@@ -7,7 +7,8 @@ class ScriptWriterAgent {
     this.credentials = credentials;
     this.logger = new Logger('ScriptWriter');
     this.templates = this.loadTemplates();
-    this.aiTextService = new AITextService(credentials?.credentials || credentials || {});
+    const creds = credentials?.credentials || credentials || {};
+    this.aiTextService = new AITextService(creds.nvidia_script ? { apiKey: creds.nvidia_script.apiKey, model: creds.nvidia_script.model, baseURL: 'https://integrate.api.nvidia.com/v1', name: 'Nvidia Script (Gemma-4)' } : creds);
   }
 
   async initialize() {

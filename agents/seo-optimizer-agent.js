@@ -7,7 +7,8 @@ class SEOOptimizerAgent {
     this.credentials = credentials;
     this.logger = new Logger('SEOOptimizer');
     this.keywordDatabase = new Map();
-    this.aiTextService = new AITextService(credentials?.credentials || credentials || {});
+    const creds = credentials?.credentials || credentials || {};
+    this.aiTextService = new AITextService(creds.nvidia_seo ? { apiKey: creds.nvidia_seo.apiKey, model: creds.nvidia_seo.model, baseURL: 'https://integrate.api.nvidia.com/v1', name: 'Nvidia SEO (DeepSeek-V4)' } : creds);
   }
 
   async initialize() {

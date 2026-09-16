@@ -58,6 +58,20 @@ class AITextService {
   }
 
   _init(credentials) {
+    // 1. Direct configuration object
+    if (credentials.apiKey && (credentials.baseURL || credentials.model)) {
+      const baseURL = credentials.baseURL || 'https://integrate.api.nvidia.com/v1';
+      const preset = { name: credentials.name || 'Nvidia NIM', baseURL, defaultModel: credentials.model || 'openai/gpt-oss-20b' };
+      return this._initOpenAICompatible(preset, credentials.apiKey, credentials.model);
+    }
+
+    // 2. Specific department objects (nvidia_seo, nvidia_script, nvidia_strategy, etc.)
+    const dept = credentials.nvidia_seo || credentials.nvidia_script || credentials.nvidia_strategy || credentials.nvidia;
+    if (dept?.apiKey) {
+      const preset = { name: 'Nvidia NIM', baseURL: 'https://integrate.api.nvidia.com/v1', defaultModel: dept.model || 'openai/gpt-oss-20b' };
+      return this._initOpenAICompatible(preset, dept.apiKey, dept.model);
+    }
+
     const provider = credentials.aiProvider?.provider;
     const apiKey = credentials.aiProvider?.apiKey;
     const model = credentials.aiProvider?.model;
@@ -82,7 +96,7 @@ class AITextService {
   }
 
   _initOpenAICompatible(preset, apiKey, model) {
-    this.client = new OpenAI({ apiKey, baseURL: preset.baseURL });
+    this.client = new OpenAI({ apiKey, baseURL: preset.baseURL, timeout: 60000 });
     this.model = model || preset.defaultModel;
     this.providerName = preset.name;
     this.logger.info(`${preset.name} initialized (model: ${this.model})`);
@@ -118,14 +132,26 @@ class AITextService {
       throw new Error('No AI text provider configured');
     }
 
-    const response = await this.client.chat.completions.create({
+    const requestPayload = {
       model,
       messages: [{ role: 'user', content: prompt }],
       max_tokens: maxTokens,
       temperature,
-    });
+    };
 
-    return response.choices[0].message.content;
+    if (options.chat_template_kwargs || model.includes('deepseek')) {
+      requestPayload.extra_body = {
+        chat_template_kwargs: { thinking: true, reasoning_effort: 'high' }
+      };
+    }
+
+    const response = await this.client.chat.completions.create(requestPayload);
+    let content = response.choices[0].message.content || '';
+
+    // Strip out <think>...</think> tags if model returns thinking inline
+    content = content.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+
+    return content;
   }
 
   isAvailable() {

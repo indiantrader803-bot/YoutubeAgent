@@ -9,8 +9,8 @@ class ContentStrategyAgent {
     this.logger = new Logger('ContentStrategy');
     this.trendingTopics = [];
     this.competitorData = [];
-    this.contentCalendar = [];
-    this.aiTextService = new AITextService(credentials?.credentials || credentials || {});
+    const creds = credentials?.credentials || credentials || {};
+    this.aiTextService = new AITextService(creds.nvidia_strategy ? { apiKey: creds.nvidia_strategy.apiKey, model: creds.nvidia_strategy.model, baseURL: 'https://integrate.api.nvidia.com/v1', name: 'Nvidia Strategy (GPT-OSS)' } : creds);
   }
 
   async initialize() {

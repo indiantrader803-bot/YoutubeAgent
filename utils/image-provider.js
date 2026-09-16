@@ -5,15 +5,23 @@ const { detectHardware } = require('./dependency-manager');
 
 class ImageProvider {
   constructor(options = {}) {
+    this.options = options;
     this.comfyUrl = options.comfyUrl || process.env.COMFYUI_URL || 'http://127.0.0.1:8188';
-    this.provider = options.provider || process.env.IMAGE_PROVIDER || 'comfyui';
+    this.provider = options.provider || process.env.IMAGE_PROVIDER || 'flux';
     this.hardware = detectHardware();
   }
 
   async generate(prompt, imagePath) {
     await fs.mkdir(path.dirname(imagePath), { recursive: true });
 
-    // Try ComfyUI if hardware VRAM >= 6GB or explicitly enabled
+    // 1. Try NVIDIA FLUX.1-dev for ultra-high quality and character consistency
+    try {
+      return await this.generateFluxNVIDIA(prompt, imagePath);
+    } catch (err) {
+      console.warn(`[ImageProvider] NVIDIA FLUX.1-dev unavailable (${err.message}). Trying fallback generators...`);
+    }
+
+    // 2. Try ComfyUI if hardware VRAM >= 6GB or explicitly enabled
     if (this.hardware.vramGb >= 6 || this.provider === 'comfyui') {
       try {
         if (await this.health_check()) {
@@ -24,7 +32,7 @@ class ImageProvider {
       }
     }
 
-    // Fallback: Stock / Free Visual Canvas API
+    // 3. Fallback: Free Visual Canvas API
     return await this.generateStockFallback(prompt, imagePath);
   }
 
@@ -86,6 +94,32 @@ class ImageProvider {
     const imgRes = await axios.get(`${this.comfyUrl}/view?filename=${filename}`, { responseType: 'arraybuffer' });
     await fs.writeFile(imagePath, Buffer.from(imgRes.data));
     return imagePath;
+  }
+
+  async generateFluxNVIDIA(prompt, imagePath) {
+    const apiKey = this.options?.nvidia_flux_image?.apiKey || process.env.NVIDIA_FLUX_KEY || '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';
+    const cleanPrompt = String(prompt).slice(0, 500);
+    const res = await axios.post('https://ai.api.nvidia.com/v1/genai/black-forest-labs/flux.1-dev', {
+      prompt: cleanPrompt,
+      mode: 'base',
+      cfg_scale: 3.5,
+      steps: 25
+    }, {
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      },
+      timeout: 35000
+    });
+
+    if (res.data?.artifacts && res.data.artifacts.length > 0) {
+      const buffer = Buffer.from(res.data.artifacts[0].base64, 'base64');
+      await fs.writeFile(imagePath, buffer);
+      console.log(`[ImageProvider] NVIDIA FLUX.1-dev image generated: ${imagePath}`);
+      return imagePath;
+    }
+    throw new Error('No artifacts returned by NVIDIA FLUX.1-dev');
   }
 
   async generateStockFallback(prompt, imagePath) {
