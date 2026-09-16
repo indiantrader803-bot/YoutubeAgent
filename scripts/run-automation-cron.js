@@ -30,16 +30,16 @@ async function runStandaloneAutomation() {
   const creds = credentialManager.credentials || {};
 
   const agents = {
-    strategy: new ContentStrategyAgent(db, creds),
-    scriptWriter: new ScriptWriterAgent(db, creds),
-    thumbnailDesigner: new ThumbnailDesignerAgent(db, creds),
-    seoOptimizer: new SEOOptimizerAgent(db, creds),
-    production: new ProductionManagementAgent(db, creds),
-    publishing: new PublishingSchedulingAgent(db, creds),
-    analytics: new AnalyticsOptimizationAgent(db, creds),
-    videoMonitor: new VideoGenerationMonitorAgent(db, creds),
-    youtubeOverseer: new DedicatedYouTubeAutomationMonitorAgent(db, creds),
-    studioMonitor: new YouTubeStudioAnalyticsMonitorAgent(db, creds)
+    strategy: new ContentStrategyAgent(db, credentialManager),
+    scriptWriter: new ScriptWriterAgent(db, credentialManager),
+    thumbnailDesigner: new ThumbnailDesignerAgent(db, credentialManager),
+    seoOptimizer: new SEOOptimizerAgent(db, credentialManager),
+    production: new ProductionManagementAgent(db, credentialManager),
+    publishing: new PublishingSchedulingAgent(db, credentialManager),
+    analytics: new AnalyticsOptimizationAgent(db, credentialManager),
+    videoMonitor: new VideoGenerationMonitorAgent(db, credentialManager),
+    youtubeOverseer: new DedicatedYouTubeAutomationMonitorAgent(db, credentialManager),
+    studioMonitor: new YouTubeStudioAnalyticsMonitorAgent(db, credentialManager)
   };
 
   for (const [name, agent] of Object.entries(agents)) {

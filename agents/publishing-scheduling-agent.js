@@ -59,14 +59,25 @@ class PublishingSchedulingAgent {
 
   async setupYouTubeAPI() {
     try {
-      const auth = this.credentials.getYouTubeAuth();
-      this.youtube = google.youtube({ version: 'v3', auth });
-      this.logger.info('YouTube API initialized');
+      let auth = null;
+      if (typeof this.credentials?.getYouTubeAuth === 'function') {
+        auth = this.credentials.getYouTubeAuth();
+      } else if (typeof this.credentials?.credentials?.getYouTubeAuth === 'function') {
+        auth = this.credentials.credentials.getYouTubeAuth();
+      } else {
+        const { CredentialManager } = require('../utils/credential-manager');
+        const cm = new CredentialManager();
+        await cm.initialize();
+        auth = cm.getYouTubeAuth();
+      }
+      if (auth) {
+        this.youtube = google.youtube({ version: 'v3', auth });
+        this.logger.info('YouTube API initialized successfully');
+      } else {
+        this.logger.warn('YouTube API not initialised (no auth tokens found)');
+      }
     } catch (error) {
-      // YouTube tokens not yet available (e.g. first deploy before OAuth).
-      // The server still starts so the user can complete the OAuth flow
-      // via the dashboard and then restart/redeploy.
-      this.logger.warn('YouTube API not initialised (no tokens yet) — complete OAuth via the dashboard to enable uploads');
+      this.logger.warn(`YouTube API not initialised: ${error.message}`);
     }
   }
 
