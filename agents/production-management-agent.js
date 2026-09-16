@@ -10,7 +10,7 @@ class ProductionManagementAgent {
     this.logger = new Logger('ProductionManagement');
     this.pipeline = [];
     this.assets = new Map();
-    this.aiVideoGenerator = new AIVideoGenerator(credentials);
+    this.aiVideoGenerator = new AIVideoGenerator(credentials?.credentials || credentials || {});
   }
 
   async initialize() {
