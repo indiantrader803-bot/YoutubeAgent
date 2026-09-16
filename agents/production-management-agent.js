@@ -149,26 +149,31 @@ class ProductionManagementAgent {
   }
 
   formatScriptForTTS(script) {
+    if (!script) return 'Welcome to today\'s video! Make sure to like and subscribe.';
+    
     let ttsText = '';
     
     // Add hook
     if (script.hook) {
-      ttsText += `${script.hook.text}\n\n`;
+      const hookText = typeof script.hook === 'string' ? script.hook : script.hook.text;
+      if (hookText) ttsText += `${hookText}\n\n`;
     }
     
     // Add introduction
     if (script.introduction) {
-      ttsText += `${script.introduction.greeting}\n`;
-      ttsText += `${script.introduction.topicIntro}\n`;
-      ttsText += `${script.introduction.valueProposition}\n`;
-      ttsText += `${script.introduction.credibility}\n\n`;
+      if (typeof script.introduction === 'string') {
+        ttsText += `${script.introduction}\n\n`;
+      } else {
+        if (script.introduction.greeting) ttsText += `${script.introduction.greeting}\n`;
+        if (script.introduction.topicIntro) ttsText += `${script.introduction.topicIntro}\n`;
+        if (script.introduction.valueProposition) ttsText += `${script.introduction.valueProposition}\n`;
+        if (script.introduction.credibility) ttsText += `${script.introduction.credibility}\n\n`;
+      }
     }
     
     // Add main content
     if (script.mainContent && script.mainContent.sections) {
-      script.mainContent.sections.forEach((section, index) => {
-        ttsText += `Section ${index + 1}: ${section.title}\n`;
-        
+      script.mainContent.sections.forEach((section) => {
         if (Array.isArray(section.content)) {
           section.content.forEach(line => {
             if (typeof line === 'string' && !line.startsWith('[')) {
@@ -178,38 +183,54 @@ class ProductionManagementAgent {
         } else if (section.steps) {
           section.steps.forEach(step => {
             ttsText += `${step.title}. ${step.description}\n`;
-            ttsText += `${step.tip}\n`;
+            if (step.tip) ttsText += `${step.tip}\n`;
           });
         } else if (section.items) {
           section.items.forEach(item => {
-            ttsText += `Number ${item.number}: ${item.title}. ${item.description}\n`;
+            ttsText += `${item.title}. ${item.description}\n`;
           });
         } else if (typeof section.content === 'string') {
           ttsText += `${section.content}\n`;
         }
-        
         ttsText += '\n';
       });
     }
     
     // Add conclusion
     if (script.conclusion) {
-      script.conclusion.recap.forEach(line => {
-        if (typeof line === 'string') {
-          ttsText += `${line}\n`;
+      if (typeof script.conclusion === 'string') {
+        ttsText += `${script.conclusion}\n\n`;
+      } else {
+        if (Array.isArray(script.conclusion.recap)) {
+          script.conclusion.recap.forEach(line => {
+            if (typeof line === 'string') ttsText += `${line}\n`;
+          });
         }
-      });
-      ttsText += `\n${script.conclusion.finalThought}\n\n`;
+        if (script.conclusion.finalThought) {
+          ttsText += `\n${script.conclusion.finalThought}\n\n`;
+        }
+      }
     }
     
     // Add CTA
     if (script.callToAction) {
-      ttsText += `${script.callToAction.subscribe}\n`;
-      ttsText += `${script.callToAction.like}\n`;
-      ttsText += `${script.callToAction.comment}\n`;
+      if (typeof script.callToAction === 'string') {
+        ttsText += `${script.callToAction}\n`;
+      } else {
+        if (script.callToAction.subscribe) ttsText += `${script.callToAction.subscribe}\n`;
+        if (script.callToAction.like) ttsText += `${script.callToAction.like}\n`;
+        if (script.callToAction.comment) ttsText += `${script.callToAction.comment}\n`;
+      }
     }
     
-    return ttsText;
+    // Clean up stage directions and brackets for smooth human voice
+    ttsText = ttsText
+      .replace(/\[.*?\]/g, '')
+      .replace(/\bSection \d+:\s*/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    return ttsText || script.title || 'Welcome back to our channel!';
   }
 
   async processThumbnail(thumbnail, script) {

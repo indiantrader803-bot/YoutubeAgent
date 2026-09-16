@@ -71,6 +71,7 @@ class PublishingSchedulingAgent {
         auth = cm.getYouTubeAuth();
       }
       if (auth) {
+        await auth.getAccessToken().catch(() => {});
         this.youtube = google.youtube({ version: 'v3', auth });
         this.logger.info('YouTube API initialized successfully');
       } else {

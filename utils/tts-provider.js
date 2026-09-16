@@ -6,7 +6,7 @@ const execAsync = util.promisify(exec);
 
 class TTSProvider {
   constructor(options = {}) {
-    this.provider = options.provider || process.env.TTS_PROVIDER || 'kokoro';
+    this.provider = options.provider || process.env.TTS_PROVIDER || 'google';
     this.fallback = options.fallback || process.env.TTS_FALLBACK || 'piper';
     this.voice = options.voice || process.env.TTS_VOICE || 'af_heart';
     this.speed = parseFloat(options.speed || process.env.TTS_SPEED || '1.0');

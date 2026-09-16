@@ -96,7 +96,7 @@ class AITextService {
   }
 
   _initOpenAICompatible(preset, apiKey, model) {
-    this.client = new OpenAI({ apiKey, baseURL: preset.baseURL, timeout: 60000 });
+    this.client = new OpenAI({ apiKey, baseURL: preset.baseURL, timeout: 25000 });
     this.model = model || preset.defaultModel;
     this.providerName = preset.name;
     this.logger.info(`${preset.name} initialized (model: ${this.model})`);
@@ -146,7 +146,8 @@ class AITextService {
     }
 
     const response = await this.client.chat.completions.create(requestPayload);
-    let content = response.choices[0].message.content || '';
+    const msg = response.choices?.[0]?.message;
+    let content = (msg?.content || msg?.reasoning_content || '').toString();
 
     // Strip out <think>...</think> tags if model returns thinking inline
     content = content.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();

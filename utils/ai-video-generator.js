@@ -69,9 +69,21 @@ class AIVideoGenerator {
   }
 
   async generateTTSAudio(text, outputPath) {
-    this.logger.info('Generating TTS audio...');
+    this.logger.info('Generating TTS narration audio...');
     
-    // 1. ElevenLabs (Professional Studio Voiceover)
+    // 1. High-Quality Natural TTS (Direct Google Voiceover / Kokoro)
+    try {
+      this.logger.info('Generating natural voiceover narration via TTS Provider...');
+      const genPath = await this.ttsProvider.generate(text, outputPath);
+      if (genPath && await fs.stat(outputPath).then(s => s.size > 500).catch(() => false)) {
+        this.logger.info(`TTS voiceover audio generated successfully (${(await fs.stat(outputPath)).size} bytes)`);
+        return outputPath;
+      }
+    } catch (err) {
+      this.logger.warn(`TTS Provider direct generation failed: ${err.message}, trying cloud services...`);
+    }
+
+    // 2. ElevenLabs (Professional Studio Voiceover)
     if (this.elevenLabsApiKey && this.elevenLabsVoiceId) {
       try {
         this.logger.info('Using ElevenLabs TTS for studio quality narration...');
@@ -81,7 +93,7 @@ class AIVideoGenerator {
       }
     }
 
-    // 2. OpenAI TTS
+    // 3. OpenAI TTS
     if (this.openai) {
       try {
         this.logger.info('Using OpenAI TTS fallback...');
@@ -91,7 +103,7 @@ class AIVideoGenerator {
       }
     }
 
-    // 3. Gemini native TTS (free tier)
+    // 4. Gemini native TTS (free tier)
     if (this.gemini) {
       try {
         this.logger.info('Using Gemini TTS fallback...');
@@ -101,16 +113,13 @@ class AIVideoGenerator {
       }
     }
 
-    // 4. Open-source local TTS (Kokoro / Piper)
+    // 5. Final fallback to Web Fallback
     try {
-      this.logger.info('Using local TTS provider fallback...');
-      return await this.ttsProvider.generate(text, outputPath);
-    } catch (err) {
-      this.logger.warn(`Local TTS Provider fallback triggered: ${err.message}`);
+      return await this.ttsProvider.generateWebFallback(text, outputPath);
+    } catch (e) {
+      this.logger.error(`All TTS methods failed: ${e.message}`);
+      throw e;
     }
-
-    // Final fallback to simulation
-    return await this.simulateTTSGeneration(text, outputPath);
   }
 
   async generateElevenLabsTTS(text, outputPath) {
