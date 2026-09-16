@@ -109,13 +109,10 @@ class DailyAutomation {
       
       const timer = this.logger.startTimer('Daily Content Generation (Dual Formats)');
       
-      // Daily batch split: 3 YouTube Shorts (vertical 9:16) + 2 Long-Form videos (horizontal 16:9)
+      // High Quality over Quantity: Daily Curated 2 Top-Notch Market-Ready Videos
       const dailyBatch = [
         { niche: '2D Cartoon Storytime: School Backbencher vs Strict Teacher (Not Your Type Style)', type: 'animation', isShort: true },
-        { niche: 'Candlestick Chart Pattern Breakdown: Pin Bar & Breakout Strategy (Easy Trading Style)', type: 'tutorial', isShort: true },
-        { niche: 'Relatable School Life Comedy: Last Minute Exam Preparation (Lil Yash Style)', type: 'animation', isShort: true },
-        { niche: '2D Animated Storytime: When Backbenchers Tried To Study One Night Before Exams', type: 'story', isShort: false },
-        { niche: 'Complete Price Action & Candlestick Cheat Sheet: How Smart Money Traps Retail Traders', type: 'explainer', isShort: false }
+        { niche: 'Candlestick Chart Pattern Breakdown: Pin Bar & Breakout Strategy (Easy Trading Style)', type: 'tutorial', isShort: true }
       ];
 
       for (let i = 0; i < dailyBatch.length; i++) {
