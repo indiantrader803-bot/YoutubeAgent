@@ -59,6 +59,7 @@ class AIVideoGenerator {
     const { PexelsVideoProvider } = require('./pexels-video-provider');
     const { VideoAssembler } = require('./video-assembler');
     const { StorytimeAnimationEngine } = require('./storytime-animation-engine');
+    const { OpenMontageBridge } = require('./openmontage-bridge');
 
     this.ttsProvider = new TTSProvider();
     this.subtitleProvider = new SubtitleProvider();
@@ -66,6 +67,7 @@ class AIVideoGenerator {
     this.pexelsVideoProvider = new PexelsVideoProvider(credentials.pexels?.apiKey || process.env.PEXELS_API_KEY);
     this.videoAssembler = new VideoAssembler();
     this.storytimeEngine = new StorytimeAnimationEngine();
+    this.openMontage = new OpenMontageBridge();
   }
 
   async generateTTSAudio(text, outputPath) {
@@ -360,7 +362,18 @@ class AIVideoGenerator {
     const isShort = Boolean(script?.isShort || script?.video_type === 'shorts');
     const isStorytime = script?.videoStyle === 'storytime' || script?.style === 'cartoon' || process.env.VIDEO_MODE !== 'stock';
 
-    // 1. Try 2D Cartoon Storytime Animation Engine (Not Your Type / Lil Yash Style)
+    // 1. Try OpenMontage Studio Pipeline if requested
+    if ((script?.pipeline === 'openmontage' || script?.videoStyle === 'openmontage') && this.openMontage) {
+      try {
+        this.logger.info('🚀 Launching OpenMontage Studio Pipeline...');
+        const demoName = script?.demoName || 'world-in-numbers';
+        return await this.openMontage.renderDemo(demoName, outputPath);
+      } catch (omErr) {
+        this.logger.warn(`OpenMontage pipeline fallback (${omErr.message})...`);
+      }
+    }
+
+    // 2. Try 2D Cartoon Storytime Animation Engine (Not Your Type / Lil Yash Style)
     if (isStorytime && this.storytimeEngine) {
       try {
         this.logger.info('🚀 Launching 2D Cartoon Storytime Studio (Not Your Type / Lil Yash Animation Engine)...');
