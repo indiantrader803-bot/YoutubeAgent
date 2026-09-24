@@ -152,6 +152,17 @@ class DailyAutomation {
           this.logger.info(`[Video ${i + 1} - ${formatLabel}] Scheduled and queued for publication`);
         }
 
+        // Direct Immediate Publish & Upload to YouTube (Permanent Fix for Ephemeral Cloud/Serverless)
+        try {
+          this.logger.info(`[Video ${i + 1} - ${formatLabel}] 🚀 Publishing directly & uploading to YouTube...`);
+          const published = await this.agents.publishing.publishContent(productionData.id);
+          if (published && published.youtubeUrl) {
+            this.logger.success(`[Video ${i + 1} - ${formatLabel}] ✅ Successfully published to YouTube: ${published.youtubeUrl}`);
+          }
+        } catch (pubErr) {
+          this.logger.error(`[Video ${i + 1} - ${formatLabel}] Direct YouTube upload error:`, pubErr.message);
+        }
+
         // Log individual event
         await this.logAutomationEvent('daily_content_generation', 'success', {
           contentId: productionData.id,
@@ -216,9 +227,9 @@ class DailyAutomation {
     return true;
   }
 
-  async processPublishQueue() {
+  async processPublishQueue(forceAll = false) {
     try {
-      const published = await this.agents.publishing.processPublishQueue();
+      const published = await this.agents.publishing.processPublishQueue(forceAll);
       
       if (published > 0) {
         this.logger.info(`Published ${published} videos from queue`);

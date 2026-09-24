@@ -87,3 +87,5 @@ data/captions/
 data/scripts/
 data/videos/
 data/thumbnails/
+data/production/
+vendor/OpenMontage/

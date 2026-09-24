@@ -333,12 +333,16 @@ class PublishingSchedulingAgent {
     }
   }
 
-  async processPublishQueue() {
+  async processPublishQueue(forceAll = false) {
     const now = new Date();
+    await this.loadPublishQueue().catch(() => {});
+
     const scheduled = this.publishQueue
       .filter(entry => entry.status === 'scheduled')
       .sort((a, b) => new Date(a.publishTime) - new Date(b.publishTime));
-    const readyToPublish = scheduled.filter(entry => new Date(entry.publishTime) <= now);
+    const readyToPublish = forceAll
+      ? scheduled
+      : scheduled.filter(entry => new Date(entry.publishTime) <= now);
 
     if (readyToPublish.length === 0) {
       if (scheduled.length > 0) {
