@@ -52,7 +52,7 @@ async function runStandaloneAutomation() {
   await dailyAutomation.processPublishQueue(true);
 
   const telegram = new TelegramNotifier();
-  await telegram.sendMessage('🎉 <b>GitHub Actions 24/7 Automation Finished!</b>\n\nDaily 5-Video Batch (3 Shorts + 2 Long-Form) successfully generated & uploaded to YouTube!');
+  await telegram.sendMessage('🎉 <b>24/7 Automation Pipeline Finished!</b>\n\nDaily Curated Videos (2D Cartoon Storytime + Candlestick Trading Strategy) successfully generated & published live on YouTube!');
 
   logger.success('✅ Serverless GitHub Actions Video Generation Pipeline Finished!');
   process.exit(0);

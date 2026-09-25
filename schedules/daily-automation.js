@@ -25,9 +25,9 @@ class DailyAutomation {
   }
 
   async setupScheduledTasks() {
-    // Daily content generation at 6:00 AM IST
+    // Daily content generation at 6:00 AM and 6:00 PM IST (Prime posting times)
     this.scheduledTasks.set('daily-content-generation', 
-      cron.schedule('0 6 * * *', async () => {
+      cron.schedule('0 6,18 * * *', async () => {
         if (this.isEnabled) {
           await this.runDailyContentGeneration();
         }
