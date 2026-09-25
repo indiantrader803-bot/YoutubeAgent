@@ -245,19 +245,19 @@ class PublishingSchedulingAgent {
       throw new Error('YouTube API not authenticated. Please complete YouTube OAuth consent flow on the dashboard.');
     }
 
-    const { metadata } = scheduleEntry;
+    const metadata = scheduleEntry.metadata || {};
     const isShort = scheduleEntry.isShort || metadata.video?.isShort || false;
     
-    const rawTitle = metadata.seo.title || scheduleEntry.title || 'Viral Video';
+    const rawTitle = metadata.seo?.title || scheduleEntry.title || 'Viral Video';
     const videoTitle = isShort 
       ? (rawTitle.toLowerCase().includes('#shorts') ? rawTitle : `${rawTitle} #Shorts`)
       : rawTitle.replace(/#shorts/gi, '').trim();
 
     // YouTube Community & Monetization Guidelines Compliance Notice
     const complianceDisclaimer = "\n\n--- \nDisclaimer: This video is created for entertainment and educational purposes in full compliance with YouTube Community Guidelines & Terms of Service.";
-    const videoDescription = `${metadata.seo.description}${isShort ? '\n\n#Shorts #Viral #Trending' : ''}${complianceDisclaimer}`;
+    const videoDescription = `${metadata.seo?.description || 'Watch full video and subscribe!'}${isShort ? '\n\n#Shorts #Viral #Trending' : ''}${complianceDisclaimer}`;
 
-    const rawTags = isShort ? [...(metadata.seo.tags || []), 'Shorts', 'Short'] : (metadata.seo.tags || []);
+    const rawTags = isShort ? [...(metadata.seo?.tags || []), 'Shorts', 'Short'] : (metadata.seo?.tags || []);
     const cleanTags = Array.from(new Set(rawTags.map(t => String(t).replace(/[^a-zA-Z0-9]/g, '').trim()).filter(t => t.length > 0 && t.length < 30))).slice(0, 15);
 
     // Prepare video status
@@ -278,19 +278,21 @@ class PublishingSchedulingAgent {
         title: videoTitle.slice(0, 100),
         description: videoDescription.slice(0, 5000),
         tags: cleanTags,
-        categoryId: (metadata.seo.metadata?.category || 24).toString(),
+        categoryId: (metadata.seo?.metadata?.category || 24).toString(),
         defaultLanguage: 'en',
         defaultAudioLanguage: 'en'
       },
       status: statusObj
     };
     
+    const videoTarget = typeof metadata.video === 'string' ? metadata.video : (metadata.video?.path || metadata.video);
+
     // Upload video file
     const videoUpload = await this.youtube.videos.insert({
       part: 'snippet,status',
       requestBody: videoMetadata,
       media: {
-        body: await this.getVideoStream(metadata.video.path)
+        body: await this.getVideoStream(videoTarget)
       }
     });
     

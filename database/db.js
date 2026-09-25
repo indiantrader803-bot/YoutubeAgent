@@ -369,6 +369,16 @@ class Database {
     }));
   }
 
+  async getProductionData(id) {
+    const row = await this.getRow('SELECT * FROM productions WHERE id = ?', [id]);
+    if (!row) return null;
+    return {
+      ...row,
+      assets: typeof row.assets === 'string' ? JSON.parse(row.assets || '{}') : (row.assets || {}),
+      timeline: typeof row.timeline === 'string' ? JSON.parse(row.timeline || '{}') : (row.timeline || {})
+    };
+  }
+
   // Publishing methods
   async saveScheduleEntry(entry) {
     const id = this.generateId('schedule');
