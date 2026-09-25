@@ -138,8 +138,9 @@ class PublishingSchedulingAgent {
     }
   }
 
-  async publishContent(contentId) {
+  async publishContent(contentOrId) {
     try {
+      const contentId = typeof contentOrId === 'object' ? contentOrId.id : contentOrId;
       this.logger.info(`Publishing content: ${contentId}`);
       
       let scheduleEntry = this.publishQueue.find(entry => 
@@ -150,6 +151,49 @@ class PublishingSchedulingAgent {
         this.logger.info(`Fetching schedule entry ${contentId} from database...`);
         const allSchedule = await this.db.getUpcomingSchedule().catch(() => []);
         scheduleEntry = allSchedule.find(entry => entry.productionId === contentId || entry.id === contentId || entry.production_id === contentId);
+      }
+
+      if (!scheduleEntry && typeof contentOrId === 'object') {
+        const prod = contentOrId;
+        scheduleEntry = {
+          productionId: prod.id,
+          title: prod.script?.title || prod.seo?.title || 'Viral Video',
+          publishTime: new Date().toISOString(),
+          status: 'scheduled',
+          priority: prod.priority || 50,
+          isShort: prod.isShort || false,
+          metadata: {
+            seo: prod.seo || {},
+            thumbnail: prod.assets?.thumbnail,
+            video: prod.assets?.finalVideo || prod.assets?.video,
+            captions: prod.assets?.captions
+          },
+          createdAt: new Date().toISOString()
+        };
+      }
+
+      if (!scheduleEntry) {
+        const prodData = await this.db.getProductionData(contentId).catch(() => null);
+        if (prodData && prodData.assets) {
+          const assets = typeof prodData.assets === 'string' ? JSON.parse(prodData.assets) : prodData.assets;
+          const script = typeof prodData.script === 'string' ? JSON.parse(prodData.script) : prodData.script;
+          const seo = typeof prodData.seo === 'string' ? JSON.parse(prodData.seo) : (prodData.seo || {});
+          scheduleEntry = {
+            productionId: prodData.id,
+            title: script?.title || seo?.title || 'Viral Video',
+            publishTime: new Date().toISOString(),
+            status: 'scheduled',
+            priority: prodData.priority || 50,
+            isShort: prodData.isShort || false,
+            metadata: {
+              seo: seo,
+              thumbnail: assets.thumbnail,
+              video: assets.finalVideo || assets.video,
+              captions: assets.captions
+            },
+            createdAt: new Date().toISOString()
+          };
+        }
       }
 
       if (!scheduleEntry) {

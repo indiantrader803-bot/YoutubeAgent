@@ -48,7 +48,7 @@ class ProductionManagementAgent {
     try {
       this.logger.info('Processing content for production...');
       
-      const { strategy, script, thumbnail, seo } = contentData;
+      const { strategy, script, thumbnail, seo, isShort } = contentData;
       
       // Create production entry
       const productionId = this.generateProductionId();
@@ -59,6 +59,7 @@ class ProductionManagementAgent {
         script,
         thumbnail,
         seo,
+        isShort: Boolean(isShort || strategy?.isShort || script?.isShort),
         status: 'processing',
         assets: {
           script: await this.processScript(script),
@@ -575,6 +576,12 @@ class ProductionManagementAgent {
     
     try {
       const finalVideoPath = path.join(__dirname, '..', 'data', 'videos', `${productionData.id}_final.mp4`);
+
+      if (productionData.isShort !== undefined) {
+        productionData.script.isShort = Boolean(productionData.isShort);
+      } else if (productionData.strategy?.isShort !== undefined) {
+        productionData.script.isShort = Boolean(productionData.strategy.isShort);
+      }
 
       // Use AI Video Generator to create the final video
       const producedPath = await this.aiVideoGenerator.generateVideo(

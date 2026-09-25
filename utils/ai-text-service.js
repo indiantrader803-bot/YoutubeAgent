@@ -96,7 +96,7 @@ class AITextService {
   }
 
   _initOpenAICompatible(preset, apiKey, model) {
-    this.client = new OpenAI({ apiKey, baseURL: preset.baseURL, timeout: 25000 });
+    this.client = new OpenAI({ apiKey, baseURL: preset.baseURL, timeout: 60000 });
     this.model = model || preset.defaultModel;
     this.providerName = preset.name;
     this.logger.info(`${preset.name} initialized (model: ${this.model})`);

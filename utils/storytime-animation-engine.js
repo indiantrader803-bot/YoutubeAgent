@@ -164,23 +164,25 @@ class StorytimeAnimationEngine {
     const tempVisualPath = outputPath.replace(/\.mp4$/i, '_visual.mp4');
 
     // 5. Render Visuals to MP4 via Remotion Headless Chromium
-    this.logger.info(`Rendering ${totalFrames} frames @ ${fps}fps (${width}x${height})...`);
-    await renderMedia({
-      composition,
-      serveUrl: bundleLocation,
-      codec: 'h264',
-      outputLocation: tempVisualPath,
-      inputProps: compositionProps,
-      concurrency: 2,
-      scale: 1,
-      imageFormat: 'jpeg',
-      pixelFormat: 'yuv420p',
-      onProgress: ({ progress }) => {
-        if (Math.round(progress * 100) % 25 === 0) {
-          this.logger.info(`Render progress: ${Math.round(progress * 100)}%`);
+      let lastReportedPct = -1;
+      await renderMedia({
+        composition,
+        serveUrl: bundleLocation,
+        codec: 'h264',
+        outputLocation: tempVisualPath,
+        inputProps: compositionProps,
+        concurrency: 2,
+        scale: 1,
+        imageFormat: 'jpeg',
+        pixelFormat: 'yuv420p',
+        onProgress: ({ progress }) => {
+          const pct = Math.floor(progress * 100);
+          if (pct % 25 === 0 && pct !== lastReportedPct) {
+            lastReportedPct = pct;
+            this.logger.info(`Render progress: ${pct}%`);
+          }
         }
-      }
-    });
+      });
 
     // 6. Mux Narration Audio with FFmpeg
     this.logger.info('Muxing narration audio with 2D cartoon video...');

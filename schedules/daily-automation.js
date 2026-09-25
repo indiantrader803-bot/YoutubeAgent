@@ -141,7 +141,8 @@ class DailyAutomation {
           strategy,
           script,
           thumbnail,
-          seo: seoData
+          seo: seoData,
+          isShort: item.isShort
         });
         productionData.isShort = item.isShort;
 

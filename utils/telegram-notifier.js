@@ -53,6 +53,10 @@ class TelegramNotifier {
           }
         });
       });
+      req.setTimeout(4000, () => {
+        req.destroy();
+        resolve(null);
+      });
       req.on('error', (e) => {
         console.error('[TelegramNotifier] Request error:', e.message);
         resolve(null); // Don't reject — notification failure shouldn't crash the app
@@ -145,6 +149,10 @@ class TelegramNotifier {
             resolve(null);
           }
         });
+      });
+      req.setTimeout(3000, () => {
+        req.destroy();
+        resolve(null);
       });
       req.on('error', () => resolve(null));
       req.end();
