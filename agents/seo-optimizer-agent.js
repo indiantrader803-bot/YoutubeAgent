@@ -8,7 +8,10 @@ class SEOOptimizerAgent {
     this.logger = new Logger('SEOOptimizer');
     this.keywordDatabase = new Map();
     const creds = credentials?.credentials || credentials || {};
-    this.aiTextService = new AITextService(creds.nvidia_seo ? { apiKey: creds.nvidia_seo.apiKey, model: creds.nvidia_seo.model, baseURL: 'https://integrate.api.nvidia.com/v1', name: 'Nvidia SEO (DeepSeek-V4)' } : creds);
+    // Full credentials build the failover chain; the department model is only a preference.
+    this.aiTextService = new AITextService(creds, {
+      primary: creds.nvidia_seo ? { apiKey: creds.nvidia_seo.apiKey, model: creds.nvidia_seo.model, baseURL: 'https://integrate.api.nvidia.com/v1', name: 'Nvidia SEO (DeepSeek-V4)' } : undefined
+    });
   }
 
   async initialize() {

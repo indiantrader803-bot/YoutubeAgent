@@ -60,7 +60,15 @@ class YouTubeAutomationAgent {
       this.logger.info('Setting up automation scheduler...');
       this.scheduler = new DailyAutomation(this.agents, this.db);
       await this.scheduler.initialize();
-      
+
+      // Startup catch-up: if the machine was off during a scheduled generation window,
+      // generate now and flush any overdue publishes — the channel never silently skips a day.
+      setTimeout(() => {
+        this.scheduler.catchUpMissedGeneration().catch(err => {
+          this.logger.error('Startup catch-up failed:', err.message);
+        });
+      }, 15000);
+
       // Scheduled automation cron tasks handle daily generation batches (or manually via dashboard button)
       this.logger.info('⚡ Automation scheduler active — daily batch cron scheduled.');
 

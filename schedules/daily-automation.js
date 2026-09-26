@@ -105,14 +105,32 @@ class DailyAutomation {
     this.isGeneratingBatch = true;
 
     try {
-      this.logger.info('Starting daily content generation (Dual Long-Form + YouTube Shorts)...');
+      this.logger.info('Starting daily content generation (1 Short + 1 Long-Form)...');
       
       const timer = this.logger.startTimer('Daily Content Generation (Dual Formats)');
       
-      // High Quality over Quantity: Daily Curated 2 Top-Notch Market-Ready Videos
+      // Rotate through niche pools so each run picks a different topic variety
+      // instead of regenerating the same two subjects every single day.
+      const animationNiches = [
+        '2D Cartoon Storytime: School Backbencher Comedy (Not Your Type Style)',
+        '2D Cartoon Storytime: Strict Teacher vs Clever Student (Animation)',
+        '2D Cartoon Storytime: Exam Day Disasters (Comedy Animation)',
+        '2D Cartoon Storytime: School Trip Gone Wrong (Animation Comedy)',
+        '2D Cartoon Storytime: Report Card Day Panic (Indian School Comedy)'
+      ];
+      const tradingNiches = [
+        'Candlestick Chart Pattern Breakdown: Pin Bar Strategy (Easy Trading Style)',
+        'Candlestick Chart Pattern Breakdown: Bull Flag Breakout (Trading Tutorial)',
+        'Support & Resistance Entry Secrets (Candlestick Analysis)',
+        'How to Spot False Breakouts Before They Trap You (Trading Strategy)',
+        'Order Block & Liquidity Sweep Explained (Smart Money Trading)'
+      ];
+      // Advance one slot per RUN (workflow fires twice daily), not per day,
+      // so the AM and PM runs never generate the same niches.
+      const dayIndex = Math.floor(Date.now() / 43200000);
       const dailyBatch = [
-        { niche: '2D Cartoon Storytime: School Backbencher vs Strict Teacher (Not Your Type Style)', type: 'animation', isShort: true },
-        { niche: 'Candlestick Chart Pattern Breakdown: Pin Bar & Breakout Strategy (Easy Trading Style)', type: 'tutorial', isShort: true }
+        { niche: animationNiches[dayIndex % animationNiches.length], type: 'animation', isShort: true },
+        { niche: tradingNiches[(dayIndex + 2) % tradingNiches.length], type: 'tutorial', isShort: false }
       ];
 
       for (let i = 0; i < dailyBatch.length; i++) {
@@ -120,9 +138,11 @@ class DailyAutomation {
         const formatLabel = item.isShort ? 'YouTube Short (9:16)' : 'Long-Form Video (16:9)';
         this.logger.info(`Generating video ${i + 1} of ${dailyBatch.length} [${formatLabel}] (${item.niche})...`);
 
-        // Add dynamic variation so every generated video has 100% unique context and visual elements
-        const uniqueTopic = `${item.niche} #${Math.floor(Math.random() * 8999 + 1000)}: ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
-        const strategy = await this.agents.strategy.generateContentStrategy(uniqueTopic);
+        // With an AI provider configured, the niche guides topic selection and the AI
+        // picks a fresh angle every run. In template mode pass null so the strategy
+        // agent rotates through evergreen topics instead of repeating one niche string.
+        const aiAvailable = this.agents.strategy.aiTextService?.isAvailable?.() || false;
+        const strategy = await this.agents.strategy.generateContentStrategy(aiAvailable ? item.niche : null);
         strategy.contentType = item.type;
         strategy.isShort = item.isShort;
         this.logger.info(`[Video ${i + 1}] Strategy topic: ${strategy.topic}`);
@@ -146,6 +166,18 @@ class DailyAutomation {
         });
         productionData.isShort = item.isShort;
 
+        // Only attempt YouTube publishing when a real (non-simulated) video was produced
+        if (!productionData.assets?.finalVideo || productionData.assets.finalVideo.simulated) {
+          this.logger.warn(`[Video ${i + 1} - ${formatLabel}] ⚠️ No real video produced (missing key/FFmpeg) — skipping publish; fix the ✗ items in the startup capability check.`);
+          await this.logAutomationEvent('daily_content_generation', 'error', {
+            contentId: productionData.id,
+            topic: strategy.topic,
+            isShort: item.isShort,
+            error: 'simulated video, publish skipped'
+          });
+          continue;
+        }
+
         // Schedule for publishing
         const scheduleEntry = await this.agents.publishing.scheduleContent(productionData);
         if (scheduleEntry) {
@@ -162,6 +194,10 @@ class DailyAutomation {
           }
         } catch (pubErr) {
           this.logger.error(`[Video ${i + 1} - ${formatLabel}] Direct YouTube upload error:`, pubErr.message);
+          // Don't lose the video: it stays in the queue for the 15-min processor and
+          // retry passes, so a transient upload error can't silently drop a video.
+          await this.processPublishQueue().catch(() => {});
+          await this.retryFailedPublishes().catch(() => {});
         }
 
         // Log individual event
@@ -176,7 +212,10 @@ class DailyAutomation {
       }
 
       timer.end();
-      this.logger.success('Daily batch of 3 Shorts + 2 Long-Form videos generated & scheduled successfully');
+      this.logger.success('Daily batch (1 Short + 1 Long-Form) generated & scheduled successfully');
+
+      // Record the generation date so missed-day catch-up and frequency limits work
+      await this.db.setSetting('last_content_generation', new Date().toISOString()).catch(() => {});
 
     } catch (error) {
       this.logger.error('Daily content generation failed:', error);
@@ -245,6 +284,65 @@ class DailyAutomation {
       await this.logAutomationEvent('queue_processing', 'error', {
         error: error.message
       });
+    }
+  }
+
+  // Retry entries that previously failed (quota, transient network/API errors).
+  // Without this, one failed upload made the entry invisible to the 15-min queue
+  // processor forever and the video never reached the channel.
+  async retryFailedPublishes() {
+    try {
+      const failed = await this.db.getAllRows(
+        "SELECT * FROM publish_schedule WHERE status = 'failed' AND error_message NOT LIKE '%exceeded the number of videos%' ORDER BY publish_time ASC LIMIT 3"
+      );
+
+      for (const row of failed) {
+        const attempts = (row.retry_count || 0);
+        if (attempts >= 5) {
+          continue;
+        }
+        try {
+          this.logger.info(`Retrying previously failed publish: ${row.title}`);
+          await this.agents.publishing.publishContent(row.production_id);
+        } catch (error) {
+          await this.db.executeQuery(
+            'UPDATE publish_schedule SET retry_count = retry_count + 1, error_message = ? WHERE id = ?',
+            [error.message, row.id]
+          ).catch(() => {});
+          this.logger.warn(`Retry failed for ${row.title}: ${error.message}`);
+        }
+        await this.sleep(3000);
+      }
+    } catch (error) {
+      this.logger.error('Failed publish retry pass error:', error.message);
+    }
+  }
+
+  // Startup catch-up: if the machine/server was off during a scheduled generation
+  // window, run the batch now so the channel never silently skips a day.
+  async catchUpMissedGeneration() {
+    try {
+      const lastGeneration = await this.db.getSetting('last_content_generation');
+      const today = new Date().toDateString();
+      const generatedToday = lastGeneration && new Date(lastGeneration).toDateString() === today;
+
+      if (generatedToday) {
+        return false;
+      }
+
+      const upcoming = await this.agents.publishing.getUpcomingSchedule(2).catch(() => []);
+      const bufferDays = parseInt(await this.db.getSetting('content_buffer_days')) || 3;
+      if (upcoming.length >= bufferDays) {
+        this.logger.info(`Startup catch-up skipped: ${upcoming.length} videos already scheduled ahead.`);
+        return false;
+      }
+
+      this.logger.warn('Missed scheduled generation detected — running catch-up batch now.');
+      await this.runDailyContentGeneration();
+      return true;
+    } catch (error) {
+      this.logger.error('Startup catch-up failed:', error.message);
+      return false;
     }
   }
 

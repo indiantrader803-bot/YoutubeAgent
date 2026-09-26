@@ -109,6 +109,7 @@ class PublishingSchedulingAgent {
         status: 'scheduled',
         priority: productionData.priority,
         metadata: {
+          isShort: Boolean(productionData.isShort),
           seo: productionData.seo,
           thumbnail: productionData.assets.thumbnail,
           video: productionData.assets.finalVideo,
@@ -154,16 +155,16 @@ class PublishingSchedulingAgent {
       }
 
       if (!scheduleEntry && typeof contentOrId === 'object') {
-        const prod = contentOrId;
-        scheduleEntry = {
-          productionId: prod.id,
-          title: prod.script?.title || prod.seo?.title || 'Viral Video',
-          publishTime: new Date().toISOString(),
-          status: 'scheduled',
-          priority: prod.priority || 50,
-          isShort: prod.isShort || false,
-          metadata: {
-            seo: prod.seo || {},
+        const prod = contentOrId;          scheduleEntry = {
+            productionId: prod.id,
+            title: prod.script?.title || prod.seo?.title || 'Viral Video',
+            publishTime: new Date().toISOString(),
+            status: 'scheduled',
+            priority: prod.priority || 50,
+            isShort: Boolean(prod.isShort),
+            metadata: {
+              isShort: Boolean(prod.isShort),
+              seo: prod.seo || {},
             thumbnail: prod.assets?.thumbnail,
             video: prod.assets?.finalVideo || prod.assets?.video,
             captions: prod.assets?.captions
@@ -192,6 +193,33 @@ class PublishingSchedulingAgent {
               captions: assets.captions
             },
             createdAt: new Date().toISOString()
+          };
+        }
+      }
+
+      // Last-resort fallback: look up the publish_schedule row directly by production_id.
+      // Covers entries scheduled for a past date (excluded by getUpcomingSchedule's window)
+      // and entries evicted from the in-memory queue by a restart.
+      if (!scheduleEntry) {
+        const rows = await this.db.getAllRows(
+          'SELECT * FROM publish_schedule WHERE production_id = ? OR id = ? ORDER BY created_at DESC LIMIT 1',
+          [contentId, contentId]
+        ).catch(() => []);
+        const row = rows[0];
+        if (row) {
+          let metadata = {};
+          try { metadata = typeof row.metadata === 'string' ? JSON.parse(row.metadata || '{}') : (row.metadata || {}); } catch (_) {
+            // leave metadata empty and continue with defaults
+          }
+          scheduleEntry = {
+            id: row.id,
+            productionId: row.production_id || contentId,
+            title: row.title,
+            publishTime: row.publish_time,
+            status: 'scheduled',
+            priority: row.priority || 50,
+            isShort: Boolean(metadata.isShort || metadata.video?.isShort),
+            metadata
           };
         }
       }
@@ -246,7 +274,7 @@ class PublishingSchedulingAgent {
     }
 
     const metadata = scheduleEntry.metadata || {};
-    const isShort = scheduleEntry.isShort || metadata.video?.isShort || false;
+    const isShort = Boolean(scheduleEntry.isShort || metadata.isShort || metadata.video?.isShort || false);
     
     const rawTitle = metadata.seo?.title || scheduleEntry.title || 'Viral Video';
     const videoTitle = isShort 
@@ -299,9 +327,11 @@ class PublishingSchedulingAgent {
     const videoId = videoUpload.data.id;
     this.logger.info(`Video uploaded with ID: ${videoId}`);
     
-    // Upload thumbnail
-    if (metadata.thumbnail && metadata.thumbnail.path) {
-      await this.uploadThumbnail(videoId, metadata.thumbnail.path);
+    // Upload thumbnail (normalized to a valid JPEG first — YouTube rejects SVG/PNGs
+    // with odd profiles with "The provided image content is invalid")
+    const thumbnailPath = await this.normalizeThumbnailForUpload(metadata.thumbnail?.path || metadata.thumbnail);
+    if (thumbnailPath) {
+      await this.uploadThumbnail(videoId, thumbnailPath);
     }
     
     // Upload captions
@@ -332,6 +362,33 @@ class PublishingSchedulingAgent {
       throw error;
     }
   }
+  // Convert any thumbnail input (PNG, SVG, WebP, placeholder text) into a clean
+  // 1280x720 JPEG under 2MB, which is what the YouTube thumbnails.set endpoint accepts.
+  async normalizeThumbnailForUpload(thumbnailPath) {
+    try {
+      if (!thumbnailPath || typeof thumbnailPath !== 'string' || thumbnailPath.endsWith('.placeholder')) {
+        return null;
+      }
+      const stats = await fs.stat(thumbnailPath).catch(() => null);
+      if (!stats || stats.size < 1000) {
+        return null;
+      }
+
+      const sharp = require('sharp');
+      const normalizedPath = path.join(__dirname, '..', 'temp', `thumb_norm_${Date.now()}.jpg`);
+      await fs.mkdir(path.dirname(normalizedPath), { recursive: true });
+      await sharp(thumbnailPath)
+        .resize(1280, 720, { fit: 'cover' })
+        .flatten({ background: { r: 20, g: 20, b: 40 } })
+        .jpeg({ quality: 90 })
+        .toFile(normalizedPath);
+      return normalizedPath;
+    } catch (error) {
+      this.logger.warn(`Thumbnail normalization failed (${error.message}) — uploading without custom thumbnail`);
+      return null;
+    }
+  }
+
   async uploadThumbnail(videoId, thumbnailPath) {
     if (!thumbnailPath || typeof thumbnailPath !== 'string' || thumbnailPath.endsWith('.placeholder')) {
       return;

@@ -2,8 +2,9 @@ name: 24/7 Serverless Daily Video Automation
 
 on:
   schedule:
-    # Run twice daily: 6:00 AM IST (00:30 UTC) & 6:00 PM IST (12:30 UTC)
-    - cron: '30 0,12 * * *'
+    # Once daily at 6:00 AM IST (00:30 UTC). One run produces 1 Short + 1
+    # long-form, keeping the channel under YouTube's daily upload cap.
+    - cron: '30 0 * * *'
   workflow_dispatch:
 
 jobs:
@@ -23,7 +24,7 @@ jobs:
           npm ci
           sudo apt-get update && sudo apt-get install -y ffmpeg
 
-      - name: Run 5-Video Daily Automation Pipeline
+      - name: Generate and publish daily videos (1 Short + 1 long-form)
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GROQ_MODEL: "openai/gpt-oss-120b"
@@ -38,5 +39,9 @@ jobs:
           REPLICATE_API_TOKEN: ${{ secrets.REPLICATE_API_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          # Videos upload as private with a future publishAt (= scheduled premiere at
+          # peak time next day). This is the "prepare a day ahead" mode; set to public
+          # to make every video go live immediately after upload instead.
+          DEFAULT_PRIVACY_STATUS: private
         run: |
           node scripts/run-automation-cron.js

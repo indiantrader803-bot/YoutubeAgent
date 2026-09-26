@@ -50,6 +50,7 @@ async function runStandaloneAutomation() {
   const dailyAutomation = new DailyAutomation(agents, db);
   await dailyAutomation.runDailyContentGeneration();
   await dailyAutomation.processPublishQueue(true);
+  await dailyAutomation.retryFailedPublishes();
 
   const telegram = new TelegramNotifier();
   await telegram.sendMessage('🎉 <b>24/7 Automation Pipeline Finished!</b>\n\nDaily Curated Videos (2D Cartoon Storytime + Candlestick Trading Strategy) successfully generated & published live on YouTube!');

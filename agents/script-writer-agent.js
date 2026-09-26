@@ -1,6 +1,17 @@
 const { Logger } = require('../utils/logger');
 const { AITextService } = require('../utils/ai-text-service');
 
+// Both rates are measured from real renders (ffmpeg-measured narration audio),
+// not guessed. A short script is dominated by the TTS provider's fixed
+// per-segment silence, so it produces far fewer words per second of audio than
+// a long script does.
+const SHORT_WORDS_PER_SECOND = 1.6;
+const LONG_WORDS_PER_SECOND = 2.4;
+// YouTube only treats a vertical video as a Short while it stays at or under 60s.
+const SHORT_MAX_SECONDS = 55;
+// Rough spoken-word ceiling for a long-form video (~10 minutes).
+const LONG_FORM_WORD_BUDGET = 1500;
+
 class ScriptWriterAgent {
   constructor(db, credentials) {
     this.db = db;
@@ -8,7 +19,10 @@ class ScriptWriterAgent {
     this.logger = new Logger('ScriptWriter');
     this.templates = this.loadTemplates();
     const creds = credentials?.credentials || credentials || {};
-    this.aiTextService = new AITextService(creds.nvidia_script ? { apiKey: creds.nvidia_script.apiKey, model: creds.nvidia_script.model, baseURL: 'https://integrate.api.nvidia.com/v1', name: 'Nvidia Script (Gemma-4)' } : creds);
+    // Full credentials build the failover chain; the department model is only a preference.
+    this.aiTextService = new AITextService(creds, {
+      primary: creds.nvidia_script ? { apiKey: creds.nvidia_script.apiKey, model: creds.nvidia_script.model, baseURL: 'https://integrate.api.nvidia.com/v1', name: 'Nvidia Script (Gemma-4)' } : undefined
+    });
   }
 
   async initialize() {
@@ -53,6 +67,7 @@ class ScriptWriterAgent {
       const template = this.templates[strategy.contentType.toLowerCase()] || this.templates.explainer;
       const aiScript = await this.generateScriptWithAI(strategy, template);
       if (aiScript) {
+        this.enforceNarrationBudget(aiScript, strategy);
         aiScript.fullScript = this.formatFullScript(aiScript);
         await this.db.saveScript(aiScript);
         this.logger.info(`Script generated with AI provider: ${aiScript.title}`);
@@ -98,6 +113,7 @@ class ScriptWriterAgent {
       };
 
       // Format for readability
+      this.enforceNarrationBudget(script, strategy);
       script.fullScript = this.formatFullScript(script);
       
       // Save to database
@@ -117,25 +133,29 @@ class ScriptWriterAgent {
       return null;
     }
 
-    const prompt = `You are writing a YouTube script plan.
+    const short = this.isShortForm(strategy);
+    const wordBudget = this.wordBudget(strategy);
+    const lengthGuidance = short
+      ? `This is a YouTube Short. The ENTIRE spoken script must be under ${wordBudget} words (about ${SHORT_MAX_SECONDS} seconds). \
+Use exactly 3 sections of 2 short spoken bullets each, roughly 12 words per bullet. No filler, no long introductions.`
+      : `Desired length: ${process.env.DEFAULT_VIDEO_LENGTH || '8-12 minutes'} (stay under ${wordBudget} spoken words).`;
+    const shapeExample = short
+      ? '{ "title": "...", "hook": "...", "sections": [ { "title": "...", "content": ["...", "..."], "duration": 15 } ], "cta": "..." }'
+      : '{\n  "title": "compelling title under 100 characters",\n  "hook": "opening hook in one sentence",\n  "sections": [\n    { "title": "section title", "content": ["spoken script bullet"], "duration": 60 }\n  ],\n  "cta": "clear call to action"\n}';
+
+    const prompt = `You are writing a YouTube ${short ? 'Short' : 'video'} script plan.
 Return only valid JSON with this exact shape:
-{
-  "title": "compelling title under 100 characters",
-  "hook": "opening hook in one sentence",
-  "sections": [
-    { "title": "section title", "content": ["spoken script bullet"], "duration": 60 }
-  ],
-  "cta": "clear call to action"
-}
+${shapeExample}
 
 Topic: ${strategy.topic}
 Style/content type: ${strategy.contentType}
 Angle: ${strategy.angle}
 Target audience: ${strategy.targetAudience}
-Desired length: ${process.env.DEFAULT_VIDEO_LENGTH || '8-12 minutes'}
+${lengthGuidance}
 Tone: ${template.tone}
-Pacing: ${template.pacing}
+Pacing: ${short ? 'fast, every sentence must earn its place' : template.pacing}
 Keywords: ${(strategy.keywords || []).join(', ')}
+Write spoken narration only (what the voiceover says). Do not include stage directions, headings, or timestamps.
 Avoid fabricated statistics, unsupported claims, and fake urgency.`;
 
     try {
@@ -213,8 +233,10 @@ Avoid fabricated statistics, unsupported claims, and fake urgency.`;
       return [];
     }
 
+    const short = this.isShortForm(strategy);
+
     return sections
-      .slice(0, 8)
+      .slice(0, short ? 3 : 8)
       .map((section, index) => {
         const rawContent = Array.isArray(section.content)
           ? section.content
@@ -228,7 +250,7 @@ Avoid fabricated statistics, unsupported claims, and fake urgency.`;
           type: 'ai_generated',
           title: String(section.title || `${strategy.topic} Part ${index + 1}`).trim(),
           content,
-          duration: parseInt(section.duration, 10) || 60
+          duration: short ? 15 : (parseInt(section.duration, 10) || 60)
         };
       })
       .filter(section => section.title && section.content.length > 0);
@@ -747,6 +769,245 @@ Avoid fabricated statistics, unsupported claims, and fake urgency.`;
     fullScript += `KEYWORDS: ${script.keywords.join(', ')}\n`;
     
     return fullScript;
+  }
+
+  isShortForm(strategy) {
+    return Boolean(
+      strategy?.isShort ||
+      strategy?.format === 'short' ||
+      strategy?.videoStyle === 'short' ||
+      strategy?.contentType === 'short'
+    );
+  }
+
+  /** Spoken-word ceiling for the requested format. */
+  wordBudget(strategy) {
+    if (this.isShortForm(strategy)) {
+      return Math.floor(SHORT_MAX_SECONDS * SHORT_WORDS_PER_SECOND);
+    }
+    const configured = Number(process.env.MAX_SCRIPT_WORDS);
+    return configured > 0 ? configured : LONG_FORM_WORD_BUDGET;
+  }
+
+  /**
+   * Every string in the script the voiceover will read, paired with a setter.
+   * Counting and trimming both read from this single list so the budget can
+   * never drift away from what is actually spoken.
+   * @returns {Array<{get: () => string, set: (value: string) => void}>}
+   */
+  narrationSlots(script) {
+    const slots = [];
+    const add = (get, set) => {
+      const value = get();
+      if (typeof value === 'string' && value.trim()) slots.push({ get, set });
+    };
+    const addStringOrFields = (owner, getOwner, setOwner, fields) => {
+      if (owner && typeof owner === 'object') {
+        fields.forEach((field) => add(() => owner[field], (value) => { owner[field] = value; }));
+      } else {
+        add(getOwner, setOwner);
+      }
+    };
+
+    if (script.hook) {
+      if (typeof script.hook === 'string') {
+        add(() => script.hook, (value) => { script.hook = value; });
+      } else {
+        add(() => script.hook.text, (value) => { script.hook.text = value; });
+      }
+    }
+
+    addStringOrFields(
+      script.introduction,
+      () => script.introduction,
+      (value) => { script.introduction = value; },
+      ['greeting', 'topicIntro', 'valueProposition', 'credibility']
+    );
+
+    (script.mainContent?.sections || []).forEach((section) => {
+      if (Array.isArray(section.content)) {
+        section.content.forEach((_, index) => {
+          add(() => section.content[index], (value) => { section.content[index] = value; });
+        });
+      } else if (Array.isArray(section.steps)) {
+        section.steps.forEach((step) => {
+          ['title', 'description', 'tip'].forEach((field) => {
+            add(() => step[field], (value) => { step[field] = value; });
+          });
+        });
+      } else if (Array.isArray(section.items)) {
+        section.items.forEach((item) => {
+          ['title', 'description'].forEach((field) => {
+            add(() => item[field], (value) => { item[field] = value; });
+          });
+        });
+      } else {
+        add(() => section.content, (value) => { section.content = value; });
+      }
+    });
+
+    const conclusion = script.conclusion;
+    if (conclusion && typeof conclusion === 'object') {
+      const recap = Array.isArray(conclusion.recap) ? conclusion.recap : [];
+      recap.forEach((_, index) => {
+        add(() => recap[index], (value) => { recap[index] = value; });
+      });
+      add(() => conclusion.finalThought, (value) => { conclusion.finalThought = value; });
+    } else {
+      add(() => script.conclusion, (value) => { script.conclusion = value; });
+    }
+
+    const cta = script.callToAction;
+    if (cta && typeof cta === 'object') {
+      ['text', 'message', 'script', 'subscribe', 'like', 'comment', 'nextVideo'].forEach((field) => {
+        add(() => cta[field], (value) => { cta[field] = value; });
+      });
+    } else {
+      add(() => script.callToAction, (value) => { script.callToAction = value; });
+    }
+
+    return slots;
+  }
+
+  /** Counts the words that will actually be spoken by the voiceover. */
+  countNarrationWords(script) {
+    return this.narrationSlots(script)
+      .map((slot) => slot.get())
+      .join(' ')
+      .split(/\s+/)
+      .filter(Boolean).length;
+  }
+
+  /**
+   * Hard-caps the spoken narration so the rendered video matches its format.
+   * Without this a "Short" renders at several minutes and YouTube publishes it
+   * as a regular video, losing Shorts-feed distribution entirely.
+   */
+  enforceNarrationBudget(script, strategy) {
+    const short = this.isShortForm(strategy);
+    script.isShort = short;
+
+    const budget = this.wordBudget(strategy);
+    const before = this.countNarrationWords(script);
+    if (before <= budget) return script;
+
+    this.logger.warn(
+      `Narration is ${before} words but the ${short ? 'Short (<= ' + SHORT_MAX_SECONDS + 's)' : 'long-form'} budget is ${budget}; trimming`
+    );
+
+    const words = () => this.countNarrationWords(script);
+
+    // Coarse reductions, least damaging first. Every step leaves the script
+    // structurally valid: formatFullScript() requires hook, introduction,
+    // conclusion and callToAction to all exist, so none of them may be removed.
+    const trimToWords = (value, maxWords) => {
+      if (typeof value !== 'string') return value;
+      const parts = value.split(/\s+/).filter(Boolean);
+      return parts.length > maxWords ? `${parts.slice(0, maxWords).join(' ')}.` : value;
+    };
+    const shrinkIntro = (field) => () => {
+      if (script.introduction && typeof script.introduction === 'object') {
+        script.introduction[field] = '';
+      }
+    };
+    const collapseBullets = (max) => () => {
+      (script.mainContent?.sections || []).forEach((section) => {
+        if (Array.isArray(section.content) && section.content.length > max) {
+          section.content = section.content.slice(0, max);
+        }
+      });
+    };
+    const keepSections = (max) => () => {
+      const sections = script.mainContent?.sections || [];
+      if (sections.length > max) {
+        script.mainContent.sections = sections.slice(0, Math.max(1, max));
+      }
+    };
+    const shortenConclusion = () => {
+      const conclusion = script.conclusion;
+      if (conclusion && typeof conclusion === 'object') {
+        if (Array.isArray(conclusion.recap)) conclusion.recap = conclusion.recap.slice(0, 1);
+        conclusion.finalThought = trimToWords(conclusion.finalThought, 8);
+      }
+    };
+    const shortenCta = () => {
+      const cta = script.callToAction;
+      if (cta && typeof cta === 'object') {
+        ['subscribe', 'like', 'comment', 'nextVideo'].forEach((field) => {
+          cta[field] = trimToWords(cta[field], 6);
+        });
+        ['text', 'message', 'script'].forEach((field) => {
+          if (typeof cta[field] === 'string') cta[field] = '';
+        });
+      }
+    };
+    const shortenHook = () => {
+      const hook = script.hook;
+      if (hook && typeof hook === 'object') hook.text = trimToWords(hook.text, 14);
+    };
+
+    const reductions = short
+      ? [
+          shrinkIntro('credibility'),
+          shrinkIntro('valueProposition'),
+          shortenCta,
+          shortenConclusion,
+          collapseBullets(3),
+          collapseBullets(2),
+          keepSections(3),
+          collapseBullets(1),
+          keepSections(2),
+          shortenHook,
+          keepSections(1)
+        ]
+      : [
+          shortenCta,
+          shortenConclusion,
+          collapseBullets(3),
+          collapseBullets(2),
+          keepSections(6),
+          keepSections(4)
+        ];
+
+    for (const reduce of reductions) {
+      if (words() <= budget) break;
+      reduce();
+    }
+
+    // Fine-grained safety net: drop trailing bullets one at a time, never
+    // leaving a section (or the script) without any narration.
+    let guard = 500;
+    while (words() > budget && guard-- > 0) {
+      const sections = script.mainContent?.sections || [];
+      let removed = false;
+      for (let i = sections.length - 1; i >= 0 && !removed; i--) {
+        const content = sections[i].content;
+        if (Array.isArray(content) && content.filter(Boolean).length > 1) {
+          content.pop();
+          removed = true;
+        }
+      }
+      if (!removed) break;
+    }
+
+    // Absolute guarantee: shorten the longest remaining spoken line until the
+    // budget is met. Structure and required fields are preserved throughout.
+    guard = 500;
+    while (words() > budget && guard-- > 0) {
+      const longest = this.narrationSlots(script)
+        .map((slot) => ({ slot, parts: slot.get().split(/\s+/).filter(Boolean) }))
+        .filter((entry) => entry.parts.length > 3)
+        .sort((a, b) => b.parts.length - a.parts.length)[0];
+      if (!longest) break;
+      longest.slot.set(`${longest.parts.slice(0, longest.parts.length - 3).join(' ')}.`);
+    }
+
+    script.duration = this.estimateDuration(script.mainContent);
+    const after = words();
+    this.logger.info(
+      `Narration trimmed from ${before} to ${after} words (~${Math.round(after / (short ? SHORT_WORDS_PER_SECOND : LONG_WORDS_PER_SECOND))}s) for ${short ? 'Short' : 'long-form'} format`
+    );
+    return script;
   }
 
   estimateDuration(mainContent) {

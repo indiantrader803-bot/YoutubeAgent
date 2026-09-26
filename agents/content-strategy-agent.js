@@ -10,7 +10,10 @@ class ContentStrategyAgent {
     this.trendingTopics = [];
     this.competitorData = [];
     const creds = credentials?.credentials || credentials || {};
-    this.aiTextService = new AITextService(creds.nvidia_strategy ? { apiKey: creds.nvidia_strategy.apiKey, model: creds.nvidia_strategy.model, baseURL: 'https://integrate.api.nvidia.com/v1', name: 'Nvidia Strategy (GPT-OSS)' } : creds);
+    // Full credentials build the failover chain; the department model is only a preference.
+    this.aiTextService = new AITextService(creds, {
+      primary: creds.nvidia_strategy ? { apiKey: creds.nvidia_strategy.apiKey, model: creds.nvidia_strategy.model, baseURL: 'https://integrate.api.nvidia.com/v1', name: 'Nvidia Strategy (GPT-OSS)' } : undefined
+    });
   }
 
   async initialize() {
@@ -47,10 +50,37 @@ class ContentStrategyAgent {
     }
   }
 
+  // Shared helper: get a YouTube data client from whatever credential wrapper we were given.
+  // Both CredentialManager (getYouTubeClient) and raw oauth clients are supported, and a
+  // missing/unconfigured YouTube connection degrades gracefully instead of crashing trends.
+  getYouTubeClientForTrends() {
+    try {
+      const candidates = [
+        this.credentials,
+        this.credentials?.credentials
+      ].filter(Boolean);
+
+      for (const candidate of candidates) {
+        if (typeof candidate.getYouTubeClient === 'function') {
+          return candidate.getYouTubeClient();
+        }
+      }
+
+      this.logger.warn('YouTube trend client unavailable: credentials not configured (topics will come from AI/evergreen lists)');
+      return null;
+    } catch (error) {
+      this.logger.warn(`YouTube trend client unavailable: ${error.message}`);
+      return null;
+    }
+  }
+
   async fetchYouTubeTrends() {
     // Use YouTube API to fetch trending videos
-    const youtube = this.credentials.getYouTubeClient();
-    
+    const youtube = this.getYouTubeClientForTrends();
+    if (!youtube) {
+      return [];
+    }
+
     try {
       const response = await youtube.videos.list({
         part: 'snippet,statistics',
@@ -97,8 +127,11 @@ class ContentStrategyAgent {
   }
 
   async getChannelVideos(channelId) {
-    const youtube = this.credentials.getYouTubeClient();
-    
+    const youtube = this.getYouTubeClientForTrends();
+    if (!youtube) {
+      return [];
+    }
+
     try {
       const response = await youtube.search.list({
         part: 'snippet',
@@ -266,6 +299,7 @@ class ContentStrategyAgent {
       .slice(0, 10)
       .map(topic => topic.topic)
       .join(', ');
+    const recentTopics = this.getRecentTopics(30).slice(0, 25).join(' | ');
     const prompt = `You are selecting a YouTube content strategy.
 Return only valid JSON with this exact shape:
 {
@@ -279,18 +313,33 @@ Return only valid JSON with this exact shape:
 Requested topic: ${requestedTopic || 'none'}
 Trending topics available: ${trendingTopics || 'Technology Trends'}
 Channel target audience: ${process.env.TARGET_AUDIENCE || 'General audience interested in educational content'}
+Topics already covered recently (do NOT repeat or make trivial variations of these): ${recentTopics || 'none yet'}
+The topic must be a fresh, specific, clickable idea that stands on its own as a video title. Never append numbers, dates, or episode counters to the topic.
 Avoid fabricated claims and unsupported numbers.`;
 
     try {
       const response = await this.aiTextService.generateText(prompt, {
         maxTokens: 1000,
-        temperature: 0.7
+        temperature: 0.9
       });
       const parsed = this.parseAIJsonResponse(response);
-      const topic = String(parsed.topic || requestedTopic || '').trim();
+      let topic = String(parsed.topic || requestedTopic || '').trim();
 
       if (!topic) {
         throw new Error('AI strategy response missing topic');
+      }
+
+      // Clean junk suffixes the model may copy from the prompt history (#1234, ": Sep 8", "Episode 1848")
+      topic = topic
+        .replace(/#\d+/g, '')
+        .replace(/\b(Episode|Ep\.?|Part)\s*\d+\b/gi, '')
+        .replace(/[:\-–]\s*(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s*\d{0,2}\s*$/i, '')
+        .replace(/\s{2,}/g, ' ')
+        .replace(/[\s:–-]+$/, '')
+        .trim();
+
+      if (!topic) {
+        throw new Error('AI strategy topic was empty after cleanup');
       }
 
       const contentType = this.normalizeContentType(parsed.contentType, topic);
@@ -360,9 +409,30 @@ Avoid fabricated claims and unsupported numbers.`;
       return readable;
     }
 
+    return this.pickEvergreenFallbackTopic();
+  }
+
+  pickEvergreenFallbackTopic() {
+    // Rotate through the evergreen list and skip anything used in the last 30 days
+    // so repeated runs produce genuinely different videos instead of the same pick.
+    // Matching ignores punctuation/emoji so cosmetic variations still count as repeats.
+    const normalizeForCompare = (t) => String(t).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
     const fallbackTopics = this.getEvergreenFallbackTopics();
+    this.pickedThisRun = this.pickedThisRun || [];
+    const recentLower = new Set([
+      ...this.getRecentTopics(30).map(t => normalizeForCompare(t)),
+      ...this.pickedThisRun.map(t => normalizeForCompare(t))
+    ]);
+
+    for (const candidate of fallbackTopics) {
+      if (!recentLower.has(normalizeForCompare(candidate))) {
+        this.pickedThisRun.push(candidate);
+        return { topic: candidate, score: 1 };
+      }
+    }
+
     const pick = fallbackTopics[Math.floor(Math.random() * fallbackTopics.length)];
-    this.logger.info(`Template mode: no readable trending topic available — using evergreen topic "${pick}"`);
+    this.logger.info(`Template mode: evergreen list exhausted for last 30 days — reusing "${pick}"`);
     return { topic: pick, score: 1 };
   }
 
@@ -462,20 +532,13 @@ Avoid fabricated claims and unsupported numbers.`;
   }
 
   calculateBestPublishTime() {
-    // Analyze best publishing times
-    const bestTimes = [
-      { day: 'Tuesday', hour: 14 },
-      { day: 'Wednesday', hour: 14 },
-      { day: 'Thursday', hour: 14 },
-      { day: 'Friday', hour: 15 },
-      { day: 'Saturday', hour: 10 },
-      { day: 'Sunday', hour: 10 }
-    ];
+    // Schedule into the next optimal publishing window (tomorrow 2 PM by default).
+    // The old implementation returned a random day up to a week out, which left
+    // freshly generated videos sitting in the queue for days.
+    const nextDate = new Date();
+    nextDate.setDate(nextDate.getDate() + 1);
+    nextDate.setHours(14, 0, 0, 0);
 
-    const selected = bestTimes[Math.floor(Math.random() * bestTimes.length)];
-    const nextDate = this.getNextWeekday(selected.day);
-    nextDate.setHours(selected.hour, 0, 0, 0);
-    
     return nextDate.toISOString();
   }
 
@@ -507,14 +570,17 @@ Avoid fabricated claims and unsupported numbers.`;
       }));
   }
 
-  getRecentTopics() {
-    // Get topics used in last 7 days to avoid repetition
-    return this.historicalPerformance
+  getRecentTopics(days = 7) {
+    // Get topics used in the last N days to avoid repetition
+    return (this.historicalPerformance || [])
       .filter(content => {
-        const contentDate = new Date(content.createdAt);
-        const weekAgo = new Date();
-        weekAgo.setDate(weekAgo.getDate() - 7);
-        return contentDate > weekAgo;
+        const contentDate = new Date(content.createdAt || content.publish_date);
+        if (Number.isNaN(contentDate.getTime())) {
+          return false;
+        }
+        const cutoff = new Date();
+        cutoff.setDate(cutoff.getDate() - days);
+        return contentDate > cutoff;
       })
       .map(content => content.topic);
   }

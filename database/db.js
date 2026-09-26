@@ -22,6 +22,11 @@ class Database {
       
       // Create tables
       await this.createTables();
+
+      // Lightweight migrations
+      await this.executeQuery(
+        'ALTER TABLE publish_schedule ADD COLUMN retry_count INTEGER DEFAULT 0'
+      ).catch(() => {});
       
       this.logger.success('Database initialized successfully');
       return true;
