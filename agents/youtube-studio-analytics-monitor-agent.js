@@ -29,10 +29,12 @@ class YouTubeStudioAnalyticsMonitorAgent {
       this.logger.info('[YouTubeStudioMonitor] Connecting to YouTube Analytics API...');
       const youtube = this.credentials.getYouTubeClient();
 
-      // Fetch channel stats
+      // Fetch channel stats.
+      // NOTE: YouTube Data API v3 has no 'monetizationDetails' part (ad status is
+      // Studio-only), so we request only parts that actually exist.
       const channelRes = await youtube.channels.list({
         mine: true,
-        part: 'snippet,statistics,monetizationDetails'
+        part: 'snippet,statistics'
       });
 
       if (channelRes.data.items && channelRes.data.items.length > 0) {

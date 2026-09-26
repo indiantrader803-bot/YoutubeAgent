@@ -53,7 +53,7 @@ async function runStandaloneAutomation() {
   await dailyAutomation.retryFailedPublishes();
 
   const telegram = new TelegramNotifier();
-  await telegram.sendMessage('🎉 <b>24/7 Automation Pipeline Finished!</b>\n\nDaily Curated Videos (2D Cartoon Storytime + Candlestick Trading Strategy) successfully generated & published live on YouTube!');
+  await telegram.sendMessage('🎬 <b>Viral Video Factory Run Finished!</b>\n\nDaily batch (1 long-form + 3 Shorts) successfully generated & published live on YouTube!');
 
   logger.success('✅ Serverless GitHub Actions Video Generation Pipeline Finished!');
   process.exit(0);

@@ -196,6 +196,13 @@ class ThumbnailDesignerAgent {
     Emotional tone: ${concept.emotion}
     Composition: ${concept.composition}
     
+    Viral CTR formula (must follow):
+    - ONE character with an exaggerated shocked expression
+    - ONE oversized object (planet, robot, brain, volcano — match the topic)
+    - Text of 3-5 words max, huge bold type
+    - Bright yellow, red, and blue palette; high contrast against the background
+    - Clean focal point readable at small (mobile) sizes
+    
     The thumbnail should be eye-catching, professional, and optimized for high click-through rate.
     Resolution: 1280x720px
     Format: High contrast, bold text, clear imagery`;

@@ -9,6 +9,95 @@ const SHORT_WORDS_PER_SECOND = 1.6;
 const LONG_WORDS_PER_SECOND = 2.4;
 // YouTube only treats a vertical video as a Short while it stays at or under 60s.
 const SHORT_MAX_SECONDS = 55;
+
+// Per-language spoken-word budgets: Hindi/Arabic/etc. often run LONGER in TTS
+// than the same content in English, so non-English Shorts need a tighter budget
+// to stay under YouTube's 60s Short limit.
+const LANGUAGE_WORD_BUDGET_SCALE = {
+  en: 1.0,
+  hi: 0.85,
+  es: 0.95,
+  pt: 0.95,
+  ar: 0.85,
+  id: 0.95
+};
+
+function scaleWordBudget(wordBudget, languageCode) {
+  const scale = LANGUAGE_WORD_BUDGET_SCALE[languageCode] || 1.0;
+  return Math.max(20, Math.round(wordBudget * scale));
+}
+
+// Standard localized subscribe CTA for template-mode (no AI) scripts.
+const LOCALIZED_CTA = {
+  en: 'If you enjoyed this story, subscribe for more daily videos!',
+  hi: 'अगर आपको यह कहानी पसंद आई तो चैनल को सब्सक्राइब करें!',
+  es: 'Si te gustó este video, ¡suscríbete para más contenido diario!',
+  pt: 'Se você gostou deste vídeo, inscreva-se para mais vídeos diários!',
+  ar: 'إذا أعجبك هذا الفيديو، فاشترك لمشاهدة المزيد من الفيديوهات اليومية!',
+  id: 'Jika Anda menyukai video ini, berlanggananlah untuk video harian lainnya!'
+};
+
+// Localized intro/conclusion framing so non-English scripts never mix English
+// template sentences into the narration (the TTS voice would read them with
+// the wrong accent/words). Used by both the AI and template script paths.
+const LOCALIZED_FRAMING = {
+  en: null, // English uses the rich built-in template generators
+  hi: strategy => ({
+    introduction: {
+      greeting: 'नमस्ते दोस्तों!',
+      topicIntro: `आज की कहानी है: ${strategy.topic}.`,
+      valueProposition: 'अंत तक देखिए, यह आपको बहुत पसंद आएगी।'
+    },
+    conclusion: {
+      recap: ['तो दोस्तों, यह थी आज की कहानी।'],
+      finalThought: 'अगर कहानी पसंद आई तो लाइक और सब्सक्राइब ज़रूर करें!'
+    }
+  }),
+  es: strategy => ({
+    introduction: {
+      greeting: '¡Hola amigos!',
+      topicIntro: `La historia de hoy es: ${strategy.topic}.`,
+      valueProposition: 'Míralo hasta el final, te va a encantar.'
+    },
+    conclusion: {
+      recap: ['Y eso fue todo por hoy, amigos.'],
+      finalThought: 'Si te gustó, ¡dale like y suscríbete para más videos!'
+    }
+  }),
+  pt: strategy => ({
+    introduction: {
+      greeting: 'Olá, pessoal!',
+      topicIntro: `A história de hoje é: ${strategy.topic}.`,
+      valueProposition: 'Assista até o final, você vai adorar.'
+    },
+    conclusion: {
+      recap: ['E era isso por hoje, pessoal.'],
+      finalThought: 'Se você gostou, deixe o like e se inscreva para mais vídeos!'
+    }
+  }),
+  ar: strategy => ({
+    introduction: {
+      greeting: 'مرحباً أصدقائي!',
+      topicIntro: `قصة اليوم هي: ${strategy.topic}.`,
+      valueProposition: 'شاهدوا حتى النهاية، ستنال إعجابكم.'
+    },
+    conclusion: {
+      recap: ['وهكذا تكونت قصة اليوم يا أصدقائي.'],
+      finalThought: 'إذا أعجبكم الفيديو فلا تنسوا الإعجاب والاشتراك!'
+    }
+  }),
+  id: strategy => ({
+    introduction: {
+      greeting: 'Halo teman-teman!',
+      topicIntro: `Cerita hari ini adalah: ${strategy.topic}.`,
+      valueProposition: 'Tonton sampai habis, kamu pasti suka.'
+    },
+    conclusion: {
+      recap: ['Jadi itulah cerita hari ini, teman-teman.'],
+      finalThought: 'Kalau kamu suka, jangan lupa like dan subscribe!'
+    }
+  })
+};
 // Rough spoken-word ceiling for a long-form video (~10 minutes).
 const LONG_FORM_WORD_BUDGET = 1500;
 
@@ -77,9 +166,12 @@ class ScriptWriterAgent {
       this.logger.info('Using template script generation');
       // Generate script components
       const hook = await this.generateHook(strategy);
-      const introduction = await this.generateIntroduction(strategy);
+      // Non-English template scripts use localized framing so the narration
+      // never mixes English template sentences into the target language.
+      const framing = this.localizedFraming(strategy.language || 'en', strategy);
+      const introduction = framing ? framing.introduction : await this.generateIntroduction(strategy);
       const mainContent = await this.generateMainContent(strategy, template);
-      const conclusion = await this.generateConclusion(strategy);
+      const conclusion = framing ? framing.conclusion : await this.generateConclusion(strategy);
       const cta = await this.generateCTA(strategy);
 
       // Fact Checking Verification
@@ -134,11 +226,26 @@ class ScriptWriterAgent {
     }
 
     const short = this.isShortForm(strategy);
+    const language = strategy.language || 'en';
     const wordBudget = this.wordBudget(strategy);
+
+    // Shorts cut from a long video follow a specific derivation angle
+    // (hook-twist / myth-bust / countdown / what-if / stat-shock) so each one
+    // is a self-contained funnel piece pointing at the full video.
+    const angleGuidance = short && strategy.shortAngleInstruction
+      ? `Derivation angle for this Short: ${strategy.shortAngleInstruction}\n`
+      : '';
+
+    // US accent/dialect steer for the default English track (highest-RPM geo).
+    const accentGuidance = language === 'en'
+      ? 'Write in US English with vocabulary and phrasing natural for American viewers.\n'
+      : '';
+
     const lengthGuidance = short
       ? `This is a YouTube Short. The ENTIRE spoken script must be under ${wordBudget} words (about ${SHORT_MAX_SECONDS} seconds). \
 Use exactly 3 sections of 2 short spoken bullets each, roughly 12 words per bullet. No filler, no long introductions.`
-      : `Desired length: ${process.env.DEFAULT_VIDEO_LENGTH || '8-12 minutes'} (stay under ${wordBudget} spoken words).`;
+      : `Desired length: ${process.env.DEFAULT_VIDEO_LENGTH || '8-12 minutes'} (stay under ${wordBudget} spoken words). \
+Structure: hook in the first 5 seconds, curiosity gap every 30-45 seconds, a surprising fact roughly every minute, an unexpected twist in the final act, and end with a question that drives comments.`;
     const shapeExample = short
       ? '{ "title": "...", "hook": "...", "sections": [ { "title": "...", "content": ["...", "..."], "duration": 15 } ], "cta": "..." }'
       : '{\n  "title": "compelling title under 100 characters",\n  "hook": "opening hook in one sentence",\n  "sections": [\n    { "title": "section title", "content": ["spoken script bullet"], "duration": 60 }\n  ],\n  "cta": "clear call to action"\n}';
@@ -148,10 +255,12 @@ Return only valid JSON with this exact shape:
 ${shapeExample}
 
 Topic: ${strategy.topic}
+Category: ${strategy.categoryName || 'general'}
 Style/content type: ${strategy.contentType}
 Angle: ${strategy.angle}
 Target audience: ${strategy.targetAudience}
-${lengthGuidance}
+Language: ${strategy.languageName || language} (${language}) — Write the ENTIRE narration, title, hook and CTA natively in this language, exactly as a native speaker would speak it. Do NOT use English or any other language anywhere in the output.
+${accentGuidance}${angleGuidance}${lengthGuidance}
 Tone: ${template.tone}
 Pacing: ${short ? 'fast, every sentence must earn its place' : template.pacing}
 Keywords: ${(strategy.keywords || []).join(', ')}
@@ -170,16 +279,20 @@ Avoid fabricated statistics, unsupported claims, and fake urgency.`;
         throw new Error('AI script response missing required fields');
       }
 
-      this.logger.info(`Using AI script generation via ${this.aiTextService.providerName}`);
+      // Non-English scripts use localized framing so the narration never mixes
+      // English template sentences into the target-language audio.
+      const framing = this.localizedFraming(language, strategy);
+
+      this.logger.info(`Using AI script generation via ${this.aiTextService.providerName} [${language}]`);
       return {
         title: String(parsed.title).slice(0, 100),
         hook: this.normalizeAIHook(parsed.hook),
-        introduction: await this.generateIntroduction(strategy),
+        introduction: framing ? framing.introduction : await this.generateIntroduction(strategy),
         mainContent: {
           sections,
           totalDuration: this.calculateSectionsDuration(sections)
         },
-        conclusion: await this.generateConclusion(strategy),
+        conclusion: framing ? framing.conclusion : await this.generateConclusion(strategy),
         callToAction: this.normalizeAICTA(parsed.cta, strategy),
         duration: this.estimateDuration({ sections }),
         tone: template.tone,
@@ -681,6 +794,18 @@ Avoid fabricated statistics, unsupported claims, and fake urgency.`;
   }
 
   async generateCTA(strategy) {
+    const language = strategy.language || 'en';
+    const localized = LOCALIZED_CTA[language];
+    if (localized && language !== 'en') {
+      return {
+        type: 'call_to_action',
+        subscribe: localized,
+        like: '',
+        comment: '',
+        nextVideo: '',
+        duration: '10 seconds'
+      };
+    }
     return {
       type: 'call_to_action',
       subscribe: "If you found this helpful, make sure to subscribe and hit the notification bell!",
@@ -689,6 +814,15 @@ Avoid fabricated statistics, unsupported claims, and fake urgency.`;
       nextVideo: "Check out this related video for more insights.",
       duration: '15 seconds'
     };
+  }
+
+  // Returns { introduction, conclusion } in the requested language, or null for
+  // English (which keeps the richer built-in template generators).
+  localizedFraming(languageCode, strategy) {
+    if (!languageCode || languageCode === 'en') return null;
+    const factory = LOCALIZED_FRAMING[languageCode];
+    if (!factory) return null;
+    return factory(strategy);
   }
 
   formatFullScript(script) {
@@ -780,13 +914,16 @@ Avoid fabricated statistics, unsupported claims, and fake urgency.`;
     );
   }
 
-  /** Spoken-word ceiling for the requested format. */
+  /**
+   * Spoken-word ceiling for the requested format, scaled down for languages
+   * whose TTS narration runs longer than English per unit of content
+   * (keeps non-English Shorts under YouTube's 60s limit).
+   */
   wordBudget(strategy) {
-    if (this.isShortForm(strategy)) {
-      return Math.floor(SHORT_MAX_SECONDS * SHORT_WORDS_PER_SECOND);
-    }
-    const configured = Number(process.env.MAX_SCRIPT_WORDS);
-    return configured > 0 ? configured : LONG_FORM_WORD_BUDGET;
+    const base = this.isShortForm(strategy)
+      ? Math.floor(SHORT_MAX_SECONDS * SHORT_WORDS_PER_SECOND)
+      : (Number(process.env.MAX_SCRIPT_WORDS) > 0 ? Number(process.env.MAX_SCRIPT_WORDS) : LONG_FORM_WORD_BUDGET);
+    return scaleWordBudget(base, strategy?.language || 'en');
   }
 
   /**

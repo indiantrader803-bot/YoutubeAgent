@@ -13,11 +13,13 @@ class TTSProvider {
     this.modelsDir = path.join(__dirname, '..', 'models');
   }
 
-  async generate(text, outputPath) {
+  async generate(text, outputPath, options = {}) {
+    const language = options.language || process.env.TTS_LANGUAGE || 'en';
     await fs.mkdir(path.dirname(outputPath), { recursive: true });
 
-    // Try Primary Provider: Kokoro
-    if (this.provider === 'kokoro') {
+    // Try Primary Provider: Kokoro (English-only engine — skip for other languages
+    // so Hindi/Spanish/etc. narration never comes out with an English voice).
+    if (this.provider === 'kokoro' && language === 'en') {
       try {
         return await this.generateKokoro(text, outputPath);
       } catch (err) {
@@ -25,9 +27,9 @@ class TTSProvider {
       }
     }
 
-    // Try Natural Google Voiceover Fallback directly
+    // Try Natural Google Voiceover Fallback directly (supports 40+ languages)
     try {
-      return await this.generateWebFallback(text, outputPath);
+      return await this.generateWebFallback(text, outputPath, { language });
     } catch (err) {
       console.warn(`[TTSProvider] Google TTS fallback failed (${err.message}). Trying Piper...`);
       return await this.generatePiper(text, outputPath);
@@ -84,14 +86,17 @@ except Exception as e:
     return outputPath;
   }
 
-  async generateWebFallback(text, outputPath) {
+  async generateWebFallback(text, outputPath, options = {}) {
     try {
       const googleTTS = require('google-tts-api');
       const cleanText = text.replace(/[\r\n]+/g, ' ').trim();
+      // Language from the content matrix (en, hi, es, pt, ar, id, …) — decides
+      // the Google voice so multi-language videos get native narration.
+      const language = options.language || process.env.TTS_LANGUAGE || 'en';
       
       // Use getAllAudioBase64 for long multi-sentence text
       const audioResults = await googleTTS.getAllAudioBase64(cleanText.slice(0, 2000), {
-        lang: 'en',
+        lang: language,
         slow: false,
         host: 'https://translate.google.com',
         timeout: 15000,

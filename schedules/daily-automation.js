@@ -1,5 +1,6 @@
 const cron = require('node-cron');
 const { Logger } = require('../utils/logger');
+const { loadContentMatrix, getRunIndex, buildDailyBatch, computeBestPublishTime } = require('../config/content-matrix');
 
 class DailyAutomation {
   constructor(agents, database) {
@@ -105,37 +106,20 @@ class DailyAutomation {
     this.isGeneratingBatch = true;
 
     try {
-      this.logger.info('Starting daily content generation (1 Short + 1 Long-Form)...');
+      this.logger.info('Starting daily content generation (1 Long-Form + 3 Shorts)...');
       
-      const timer = this.logger.startTimer('Daily Content Generation (Dual Formats)');
-      
-      // Rotate through niche pools so each run picks a different topic variety
-      // instead of regenerating the same two subjects every single day.
-      const animationNiches = [
-        '2D Cartoon Storytime: School Backbencher Comedy (Not Your Type Style)',
-        '2D Cartoon Storytime: Strict Teacher vs Clever Student (Animation)',
-        '2D Cartoon Storytime: Exam Day Disasters (Comedy Animation)',
-        '2D Cartoon Storytime: School Trip Gone Wrong (Animation Comedy)',
-        '2D Cartoon Storytime: Report Card Day Panic (Indian School Comedy)'
-      ];
-      const tradingNiches = [
-        'Candlestick Chart Pattern Breakdown: Pin Bar Strategy (Easy Trading Style)',
-        'Candlestick Chart Pattern Breakdown: Bull Flag Breakout (Trading Tutorial)',
-        'Support & Resistance Entry Secrets (Candlestick Analysis)',
-        'How to Spot False Breakouts Before They Trap You (Trading Strategy)',
-        'Order Block & Liquidity Sweep Explained (Smart Money Trading)'
-      ];
-      // Advance one slot per RUN (workflow fires twice daily), not per day,
-      // so the AM and PM runs never generate the same niches.
-      const dayIndex = Math.floor(Date.now() / 43200000);
-      const dailyBatch = [
-        { niche: animationNiches[dayIndex % animationNiches.length], type: 'animation', isShort: true },
-        { niche: tradingNiches[(dayIndex + 2) % tradingNiches.length], type: 'tutorial', isShort: false }
-      ];
+      const timer = this.logger.startTimer('Daily Content Generation (Viral Factory)');
+
+      // Viral factory: 1 long-form video + 3 Shorts derived from it, rotating
+      // through the 50-topic × 5-category database with per-format US prime-time
+      // publish slots (long 7 PM ET, Shorts 9 AM/1 PM/5 PM ET).
+      const matrix = loadContentMatrix();
+      const dailyBatch = buildDailyBatch(matrix, getRunIndex());
 
       for (let i = 0; i < dailyBatch.length; i++) {
         const item = dailyBatch[i];
-        const formatLabel = item.isShort ? 'YouTube Short (9:16)' : 'Long-Form Video (16:9)';
+        const isShort = item.kind === 'short';
+        const formatLabel = `${isShort ? `YouTube Short (9:16, ${item.angleId})` : 'Long-Form Video (16:9)'} [${item.language.name}]`;
         this.logger.info(`Generating video ${i + 1} of ${dailyBatch.length} [${formatLabel}] (${item.niche})...`);
 
         // With an AI provider configured, the niche guides topic selection and the AI
@@ -143,9 +127,24 @@ class DailyAutomation {
         // agent rotates through evergreen topics instead of repeating one niche string.
         const aiAvailable = this.agents.strategy.aiTextService?.isAvailable?.() || false;
         const strategy = await this.agents.strategy.generateContentStrategy(aiAvailable ? item.niche : null);
-        strategy.contentType = item.type;
-        strategy.isShort = item.isShort;
-        this.logger.info(`[Video ${i + 1}] Strategy topic: ${strategy.topic}`);
+        strategy.contentType = item.topic.type;
+        strategy.isShort = isShort;
+        // Shorts derived from the long video carry their derivation angle so the
+        // script writer can produce a self-contained funnel piece, not a summary.
+        if (isShort) {
+          strategy.shortAngle = item.angleId;
+          strategy.shortAngleInstruction = item.angleInstruction;
+          strategy.derivedFrom = item.derivedFrom;
+        }
+        // Language threading: script writing, TTS voice and YouTube metadata
+        // all read this so the same topic can be produced in any language.
+        strategy.language = item.language.code;
+        strategy.languageName = item.language.name;
+        // Category context (Future & AI, Space, Dark Psychology, …) steers the
+        // AI's tone, examples and SEO vocabulary.
+        strategy.categoryId = item.topic.categoryId;
+        strategy.categoryName = item.topic.categoryName;
+        this.logger.info(`[Video ${i + 1}] Strategy topic: ${strategy.topic} [${item.language.name}]`);
 
         // Generate script
         const script = await this.agents.scriptWriter.generateScript(strategy);
@@ -156,15 +155,25 @@ class DailyAutomation {
         // Optimize SEO (Strict YouTube Guidelines + Copyright Safe)
         const seoData = await this.agents.seoOptimizer.optimize(script, strategy);
 
+        // US prime-time publish slot from the matrix: the production agent's
+        // calculatePublishTime() honors strategy.bestPublishTime.
+        strategy.bestPublishTime = computeBestPublishTime(
+          item.publishSlot.hour,
+          item.publishSlot.timezone
+        );
+
         // Process through production
         const productionData = await this.agents.production.processContent({
           strategy,
           script,
           thumbnail,
           seo: seoData,
-          isShort: item.isShort
+          isShort
         });
-        productionData.isShort = item.isShort;
+        productionData.isShort = isShort;
+        productionData.language = item.language.code;
+        productionData.languageName = item.language.name;
+        productionData.publishSlot = item.publishSlot;
 
         // Only attempt YouTube publishing when a real (non-simulated) video was produced
         if (!productionData.assets?.finalVideo || productionData.assets.finalVideo.simulated) {
@@ -172,7 +181,8 @@ class DailyAutomation {
           await this.logAutomationEvent('daily_content_generation', 'error', {
             contentId: productionData.id,
             topic: strategy.topic,
-            isShort: item.isShort,
+            isShort,
+            language: item.language.code,
             error: 'simulated video, publish skipped'
           });
           continue;
@@ -181,7 +191,8 @@ class DailyAutomation {
         // Schedule for publishing
         const scheduleEntry = await this.agents.publishing.scheduleContent(productionData);
         if (scheduleEntry) {
-          scheduleEntry.isShort = item.isShort;
+          scheduleEntry.isShort = isShort;
+          scheduleEntry.language = item.language.code;
           this.logger.info(`[Video ${i + 1} - ${formatLabel}] Scheduled and queued for publication`);
         }
 
@@ -204,7 +215,8 @@ class DailyAutomation {
         await this.logAutomationEvent('daily_content_generation', 'success', {
           contentId: productionData.id,
           topic: strategy.topic,
-          isShort: item.isShort,
+          isShort: item.topic.isShort,
+          language: item.language.code,
           scheduledFor: productionData.scheduledPublishTime
         });
 

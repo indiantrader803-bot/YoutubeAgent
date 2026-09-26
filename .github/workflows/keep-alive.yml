@@ -43,5 +43,18 @@ jobs:
           # peak time next day). This is the "prepare a day ahead" mode; set to public
           # to make every video go live immediately after upload instead.
           DEFAULT_PRIVACY_STATUS: private
+          # Multi-language rotation: each daily run publishes every topic in the next
+          # language in this list. Default below is US-targeted English only
+          # (highest-RPM geo); add codes (hi es pt ar id …) to widen reach.
+          CONTENT_LANGUAGES: "en"
+          # Optional custom topics (pipe-separated, comma allowed inside a topic):
+          # CONTENT_TOPICS: "Topic one|Topic two"
+          # Daily output: 1 long-form + N Shorts derived from it (max 5 angles)
+          DAILY_SHORTS: "3"
+          # US prime-time publish slots (America/New_York). Long-form 7 PM ET,
+          # Shorts 9 AM / 1 PM / 5 PM ET. Override all three to change.
+          PUBLISH_TIMEZONE: "America/New_York"
+          LONG_PUBLISH_HOUR: "19"
+          SHORT_PUBLISH_HOURS: "9,13,17"
         run: |
           node scripts/run-automation-cron.js

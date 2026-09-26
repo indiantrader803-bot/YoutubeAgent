@@ -70,15 +70,17 @@ class AIVideoGenerator {
     this.openMontage = new OpenMontageBridge();
   }
 
-  async generateTTSAudio(text, outputPath) {
-    this.logger.info('Generating TTS narration audio...');
+  async generateTTSAudio(text, outputPath, options = {}) {
+    // Narration language (BCP-47-ish code from the content matrix).
+    const language = options.language || process.env.TTS_LANGUAGE || 'en';
+    this.logger.info(`Generating TTS narration audio [${language}]...`);
     
     // 1. High-Quality Natural TTS (Direct Google Voiceover / Kokoro)
     try {
       this.logger.info('Generating natural voiceover narration via TTS Provider...');
-      const genPath = await this.ttsProvider.generate(text, outputPath);
+      const genPath = await this.ttsProvider.generate(text, outputPath, { language });
       if (genPath && await fs.stat(outputPath).then(s => s.size > 500).catch(() => false)) {
-        this.logger.info(`TTS voiceover audio generated successfully (${(await fs.stat(outputPath)).size} bytes)`);
+        this.logger.info(`TTS voiceover audio generated successfully (${(await fs.stat(outputPath)).size} bytes) [${language}]`);
         return outputPath;
       }
     } catch (err) {
@@ -89,7 +91,7 @@ class AIVideoGenerator {
     if (this.elevenLabsApiKey && this.elevenLabsVoiceId) {
       try {
         this.logger.info('Using ElevenLabs TTS for studio quality narration...');
-        return await this.generateElevenLabsTTS(text, outputPath);
+        return await this.generateElevenLabsTTS(text, outputPath, language);
       } catch (err) {
         this.logger.warn(`ElevenLabs TTS failed, trying fallbacks: ${err.message}`);
       }
@@ -99,7 +101,7 @@ class AIVideoGenerator {
     if (this.openai) {
       try {
         this.logger.info('Using OpenAI TTS fallback...');
-        return await this.generateOpenAITTS(text, outputPath);
+        return await this.generateOpenAITTS(text, outputPath, language);
       } catch (err) {
         this.logger.warn(`OpenAI TTS fallback failed: ${err.message}`);
       }
@@ -109,27 +111,30 @@ class AIVideoGenerator {
     if (this.gemini) {
       try {
         this.logger.info('Using Gemini TTS fallback...');
-        return await this.generateGeminiTTS(text, outputPath);
+        return await this.generateGeminiTTS(text, outputPath, language);
       } catch (err) {
         this.logger.warn(`Gemini TTS fallback failed: ${err.message}`);
       }
     }
 
-    // 5. Final fallback to Web Fallback
+    // 5. Final fallback to Web Fallback (language-aware Google voices)
     try {
-      return await this.ttsProvider.generateWebFallback(text, outputPath);
+      return await this.ttsProvider.generateWebFallback(text, outputPath, { language });
     } catch (e) {
       this.logger.error(`All TTS methods failed: ${e.message}`);
       throw e;
     }
   }
 
-  async generateElevenLabsTTS(text, outputPath) {
+  async generateElevenLabsTTS(text, outputPath, language = 'en') {
     const url = `https://api.elevenlabs.io/v1/text-to-speech/${this.elevenLabsVoiceId}`;
     
     const data = {
       text: text,
       model_id: "eleven_v3",
+      // ElevenLabs v3 is multilingual — the language code nudges pronunciation
+      // and accent for non-English narration.
+      ...(language && language !== 'en' ? { language_code: language } : {}),
       voice_settings: {
         stability: 0.5,
         similarity_boost: 0.8,
@@ -162,11 +167,17 @@ class AIVideoGenerator {
     });
   }
 
-  async generateOpenAITTS(text, outputPath) {
+  async generateOpenAITTS(text, outputPath, language = 'en') {
+    // OpenAI TTS auto-detects the input language; the instructions parameter
+    // steers the voice toward native-sounding delivery for non-English text.
+    const instructions = language && language !== 'en'
+      ? `Speak naturally as a native ${language} speaker.`
+      : undefined;
     const response = await this.openai.audio.speech.create({
       model: "gpt-4o-mini-tts",
       voice: "coral",
       input: text,
+      ...(instructions ? { instructions } : {}),
       speed: 1.0
     });
 
@@ -177,7 +188,10 @@ class AIVideoGenerator {
     return outputPath;
   }
 
-  async generateGeminiTTS(text, outputPath) {
+  async generateGeminiTTS(text, outputPath, _language = 'en') {
+    // Gemini TTS auto-detects the language from the text itself, so the
+    // language parameter is intentionally unused here (kept for signature
+    // parity with the other TTS engines).
     const model = process.env.GEMINI_TTS_MODEL || 'gemini-3.1-flash-tts-preview';
     const voiceName = process.env.GEMINI_TTS_VOICE || 'Kore';
 

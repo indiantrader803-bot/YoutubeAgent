@@ -99,6 +99,8 @@ class SEOOptimizerAgent {
       return null;
     }
 
+    const language = strategy.language || 'en';
+    const languageName = strategy.languageName || language;
     const prompt = `You are optimizing YouTube metadata.
 Return only valid JSON with this exact shape:
 {
@@ -113,7 +115,8 @@ Angle: ${strategy.angle}
 Content type: ${strategy.contentType || 'Animation Story'}
 Target audience: ${strategy.targetAudience}
 Keywords: ${(strategy.keywords || []).join(', ')}
-
+Language: ${languageName} (${language}) — Write the title, description AND all tags natively in ${languageName} exactly as native ${languageName} speakers search on YouTube. Do NOT output English metadata. Keep any hashtags commonly used in that language's YouTube community.
+${language === 'en' ? 'Target market: United States, Canada, UK, Australia — use US English spelling and search phrasing US viewers actually type.\n' : ''}
 Guidelines:
 1. Make the title extremely click-worthy, viral, and curiosity-inducing (under 100 chars).
 2. Include 5 to 8 high-performing viral hashtags at the end of the description (e.g. #Animation #Cartoon #StoryTime #Viral #Shorts #Trending).
@@ -132,11 +135,12 @@ Keep tags under 500 characters total.`;
         throw new Error('AI SEO response missing required fields');
       }
 
-      this.logger.info(`Using AI SEO optimization via ${this.aiTextService.providerName}`);
+      this.logger.info(`Using AI SEO optimization via ${this.aiTextService.providerName} [${language}]`);
       return {
         title: String(parsed.title).trim().slice(0, 100),
         description: String(parsed.description).trim().slice(0, 5000),
-        tags
+        tags,
+        language
       };
     } catch (error) {
       this.logger.warn(`AI SEO optimization failed; using template fallback: ${error.message}`);

@@ -110,6 +110,7 @@ class PublishingSchedulingAgent {
         priority: productionData.priority,
         metadata: {
           isShort: Boolean(productionData.isShort),
+          language: productionData.language || productionData.seo?.language || 'en',
           seo: productionData.seo,
           thumbnail: productionData.assets.thumbnail,
           video: productionData.assets.finalVideo,
@@ -275,6 +276,9 @@ class PublishingSchedulingAgent {
 
     const metadata = scheduleEntry.metadata || {};
     const isShort = Boolean(scheduleEntry.isShort || metadata.isShort || metadata.video?.isShort || false);
+    // Video language: threaded from the content matrix through strategy →
+    // production → schedule metadata. Falls back to English for legacy entries.
+    const videoLanguage = metadata.language || metadata.seo?.language || 'en';
     
     const rawTitle = metadata.seo?.title || scheduleEntry.title || 'Viral Video';
     const videoTitle = isShort 
@@ -286,7 +290,14 @@ class PublishingSchedulingAgent {
     const videoDescription = `${metadata.seo?.description || 'Watch full video and subscribe!'}${isShort ? '\n\n#Shorts #Viral #Trending' : ''}${complianceDisclaimer}`;
 
     const rawTags = isShort ? [...(metadata.seo?.tags || []), 'Shorts', 'Short'] : (metadata.seo?.tags || []);
-    const cleanTags = Array.from(new Set(rawTags.map(t => String(t).replace(/[^a-zA-Z0-9]/g, '').trim()).filter(t => t.length > 0 && t.length < 30))).slice(0, 15);
+    // Keep Unicode letters/digits/combining-marks/spaces — \p{M} matters:
+    // Devanagari vowel signs (ा, ी) and Arabic diacritics are combining marks,
+    // not letters, and would otherwise be stripped (कहानी → कहन).
+    const cleanTags = Array.from(new Set(
+      rawTags
+        .map(t => String(t).replace(/[^\p{L}\p{N}\p{M} ]/gu, '').trim())
+        .filter(t => t.length > 0 && t.length < 30)
+    )).slice(0, 15);
 
     // Prepare video status
     const privacyStatus = process.env.DEFAULT_PRIVACY_STATUS || 'public';
@@ -307,8 +318,8 @@ class PublishingSchedulingAgent {
         description: videoDescription.slice(0, 5000),
         tags: cleanTags,
         categoryId: (metadata.seo?.metadata?.category || 24).toString(),
-        defaultLanguage: 'en',
-        defaultAudioLanguage: 'en'
+        defaultLanguage: videoLanguage,
+        defaultAudioLanguage: videoLanguage
       },
       status: statusObj
     };
@@ -336,7 +347,7 @@ class PublishingSchedulingAgent {
     
     // Upload captions
     if (metadata.captions && metadata.captions.path) {
-      await this.uploadCaptions(videoId, metadata.captions.path);
+      await this.uploadCaptions(videoId, metadata.captions.path, videoLanguage);
     }
     
     return videoUpload.data;
@@ -410,18 +421,22 @@ class PublishingSchedulingAgent {
     }
   }
 
-  async uploadCaptions(videoId, captionsPath) {
+  async uploadCaptions(videoId, captionsPath, language = 'en') {
     if (!captionsPath || typeof captionsPath !== 'string') return;
     try {
       const captionsContent = await fs.readFile(captionsPath, 'utf8').catch(() => null);
       if (!captionsContent) return;
+      const languageNames = {
+        en: 'English', hi: 'Hindi', es: 'Spanish', pt: 'Portuguese',
+        ar: 'Arabic', id: 'Indonesian'
+      };
       await this.youtube.captions.insert({
         part: 'snippet',
         requestBody: {
           snippet: {
             videoId: videoId,
-            language: 'en',
-            name: 'English Captions',
+            language,
+            name: `${languageNames[language] || language} Captions`,
             isDraft: false
           }
         },
@@ -429,7 +444,7 @@ class PublishingSchedulingAgent {
           body: captionsContent
         }
       });
-      this.logger.info(`Captions uploaded for video: ${videoId}`);
+      this.logger.info(`Captions uploaded for video: ${videoId} [${language}]`);
     } catch (error) {
       // Subtitles are already hard-burned on-screen into video frames
       this.logger.info(`Captions: Kinetic on-screen subtitles active.`);
