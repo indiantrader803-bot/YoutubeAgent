@@ -287,7 +287,11 @@ class PublishingSchedulingAgent {
 
     // YouTube Community & Monetization Guidelines Compliance Notice
     const complianceDisclaimer = "\n\n--- \nDisclaimer: This video is created for entertainment and educational purposes in full compliance with YouTube Community Guidelines & Terms of Service.";
-    const videoDescription = `${metadata.seo?.description || 'Watch full video and subscribe!'}${isShort ? '\n\n#Shorts #Viral #Trending' : ''}${complianceDisclaimer}`;
+    // One-click subscribe link: on mobile web this opens the confirm-subscribe
+    // dialog directly — the cheapest conversion lever a growing channel has.
+    const channelHandle = process.env.CHANNEL_HANDLE || '@BROblox';
+    const subscribeLink = `\n\n👉 SUBSCRIBE for daily videos: https://www.youtube.com/${channelHandle}?sub_confirmation=1`;
+    const videoDescription = `${metadata.seo?.description || 'Watch full video and subscribe!'}${isShort ? '\n\n#Shorts #Viral #Trending' : ''}${subscribeLink}${complianceDisclaimer}`;
 
     const rawTags = isShort ? [...(metadata.seo?.tags || []), 'Shorts', 'Short'] : (metadata.seo?.tags || []);
     // Keep Unicode letters/digits/combining-marks/spaces — \p{M} matters:
@@ -361,8 +365,34 @@ class PublishingSchedulingAgent {
     } catch (capErr) {
       this.logger.warn(`Caption upload failed for ${videoId} (video already uploaded, continuing): ${capErr.message}`);
     }
+
+    // Engagement starter: the first comment seeds discussion and lifts the
+    // video in the algorithm. Best-effort — needs the youtube.force-ssl scope
+    // (re-run OAuth consent once to enable); skips silently otherwise.
+    try {
+      await this.postEngagementComment(videoId, videoTitle);
+    } catch (cmtErr) {
+      this.logger.warn(`Engagement comment skipped for ${videoId}: ${cmtErr.message}`);
+    }
     
     return videoUpload.data;
+  }
+
+  // Post a short channel-branded comment under a fresh upload to seed
+  // engagement. Failures are non-fatal (scope may be missing).
+  async postEngagementComment(videoId, videoTitle) {
+    if (!this.youtube) return;
+    const comment = `Which part surprised you most? 🔥 Drop a comment and SUBSCRIBE — new videos every day!`;
+    await this.youtube.commentThreads.insert({
+      part: 'snippet',
+      requestBody: {
+        snippet: {
+          videoId,
+          topLevelComment: { snippet: { videoId, textOriginal: comment } }
+        }
+      }
+    });
+    this.logger.info(`Engagement comment posted on ${videoId}`);
   }
 
   async getVideoStream(videoPath) {

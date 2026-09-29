@@ -46,10 +46,11 @@ jobs:
           # (AI scenes + Edge-TTS narration + subtitles) instead of the FFmpeg
           # chain. When unset, rendering falls back to Pexels/FFmpeg as before.
           AGNES_API_KEY: ${{ secrets.AGNES_API_KEY }}
-          # Videos upload as private with a future publishAt (= scheduled premiere at
-          # peak time next day). This is the "prepare a day ahead" mode; set to public
-          # to make every video go live immediately after upload instead.
-          DEFAULT_PRIVACY_STATUS: private
+          # Videos go PUBLIC immediately after upload: at 0 subscribers the
+          # Shorts feed tests each upload right away, and every hour parked
+          # private is a lost hour of impressions. Revisit scheduling only
+          # after the channel has a subscriber base in a target timezone.
+          DEFAULT_PRIVACY_STATUS: public
           # Multi-language rotation: each daily run publishes every topic in the next
           # language in this list. Default below is US-targeted English only
           # (highest-RPM geo); add codes (hi es pt ar id …) to widen reach.
