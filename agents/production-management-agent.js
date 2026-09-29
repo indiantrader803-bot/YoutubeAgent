@@ -93,6 +93,15 @@ class ProductionManagementAgent {
       // Save to database
       await this.db.saveProductionData(productionData);
       
+      // Language + narration threading: utils/agnes-video-client.js picks the
+      // Edge-TTS voice and subtitle language from script.language, and renders
+      // the exact narration text read by generateAudioNarration (so both
+      // engines narrate the same words).
+      productionData.script.language = productionData.language;
+      productionData.script.narrationText = await fs.readFile(
+        productionData.assets.script.ttsPath, 'utf8'
+      ).catch(() => null);
+
       // Generate video content
       await this.generateVideoContent(productionData);
       

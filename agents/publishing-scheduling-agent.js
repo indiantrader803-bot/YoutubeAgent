@@ -338,16 +338,28 @@ class PublishingSchedulingAgent {
     const videoId = videoUpload.data.id;
     this.logger.info(`Video uploaded with ID: ${videoId}`);
     
-    // Upload thumbnail (normalized to a valid JPEG first — YouTube rejects SVG/PNGs
-    // with odd profiles with "The provided image content is invalid")
-    const thumbnailPath = await this.normalizeThumbnailForUpload(metadata.thumbnail?.path || metadata.thumbnail);
-    if (thumbnailPath) {
-      await this.uploadThumbnail(videoId, thumbnailPath);
+    // Everything after the videos.insert call is best-effort decoration: the
+    // video is already on YouTube at this point, so a flaky thumbnail/caption
+    // upload must NOT throw and mark the whole publish as failed (which made
+    // retry passes re-upload the same video as a duplicate).
+    try {
+      // Upload thumbnail (normalized to a valid JPEG first — YouTube rejects SVG/PNGs
+      // with odd profiles with "The provided image content is invalid")
+      const thumbnailPath = await this.normalizeThumbnailForUpload(metadata.thumbnail?.path || metadata.thumbnail);
+      if (thumbnailPath) {
+        await this.uploadThumbnail(videoId, thumbnailPath);
+      }
+    } catch (thumbErr) {
+      this.logger.warn(`Thumbnail upload failed for ${videoId} (video already uploaded, continuing): ${thumbErr.message}`);
     }
     
-    // Upload captions
-    if (metadata.captions && metadata.captions.path) {
-      await this.uploadCaptions(videoId, metadata.captions.path, videoLanguage);
+    try {
+      // Upload captions
+      if (metadata.captions && metadata.captions.path) {
+        await this.uploadCaptions(videoId, metadata.captions.path, videoLanguage);
+      }
+    } catch (capErr) {
+      this.logger.warn(`Caption upload failed for ${videoId} (video already uploaded, continuing): ${capErr.message}`);
     }
     
     return videoUpload.data;

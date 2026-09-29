@@ -25,6 +25,7 @@ jobs:
           sudo apt-get update && sudo apt-get install -y ffmpeg
 
       - name: Generate and publish daily videos (1 Short + 1 long-form)
+        id: automation
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GROQ_MODEL: "openai/gpt-oss-120b"
@@ -39,6 +40,12 @@ jobs:
           REPLICATE_API_TOKEN: ${{ secrets.REPLICATE_API_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          # Free AI video renderer (vendored in vendor/agnes-video-generator).
+          # Get a key at https://platform.agnes-ai.com and add it as the
+          # AGNES_API_KEY secret — when set, daily videos render through Agnes
+          # (AI scenes + Edge-TTS narration + subtitles) instead of the FFmpeg
+          # chain. When unset, rendering falls back to Pexels/FFmpeg as before.
+          AGNES_API_KEY: ${{ secrets.AGNES_API_KEY }}
           # Videos upload as private with a future publishAt (= scheduled premiere at
           # peak time next day). This is the "prepare a day ahead" mode; set to public
           # to make every video go live immediately after upload instead.
@@ -58,3 +65,28 @@ jobs:
           SHORT_PUBLISH_HOURS: "9,13,17"
         run: |
           node scripts/run-automation-cron.js
+
+      # The cron script exits non-zero when nothing was published — surface a
+      # Telegram alert even if the run itself failed to send one (belt & braces
+      # so a silent no-publish day can never hide behind a green workflow).
+      - name: Alert on no-publish
+        if: failure()
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
+        run: |
+          node -e "
+            const https = require('https');
+            const token = process.env.TELEGRAM_BOT_TOKEN;
+            const chat = process.env.TELEGRAM_CHANNEL_ID;
+            if (!token || !chat) { console.log('Telegram not configured'); process.exit(0); }
+            const body = JSON.stringify({
+              chat_id: chat,
+              parse_mode: 'HTML',
+              text: '🚨 <b>Daily automation run FAILED</b> — no video was published today. Check the GitHub Actions log (run ' + (process.env.GITHUB_RUN_ID || '') + ').'
+            });
+            const req = https.request({ hostname: 'api.telegram.org', path: '/bot' + token + '/sendMessage', method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) } });
+            req.on('error', () => {});
+            req.write(body); req.end();
+          "
+

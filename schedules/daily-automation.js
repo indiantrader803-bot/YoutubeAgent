@@ -1,6 +1,19 @@
 const cron = require('node-cron');
+const path = require('path');
+const fs = require('fs').promises;
+const { spawn } = require('child_process');
 const { Logger } = require('../utils/logger');
 const { loadContentMatrix, getRunIndex, buildDailyBatch, computeBestPublishTime } = require('../config/content-matrix');
+
+// Vendored Agnes Video Generator (free AI text-to-video renderer, MIT).
+// One free key from https://platform.agnes-ai.com enables it as a real-render
+// engine alongside/behind the FFmpeg chain — see utils/agnes-video-client.js.
+const AGNES_SERVICE_DIR = path.join(__dirname, '..', 'vendor', 'agnes-video-generator');
+const AGNES_ENV = {
+  AGNES_API_KEY: process.env.AGNES_API_KEY || '',
+  AGNES_HOST: process.env.AGNES_HOST || '127.0.0.1',
+  AGNES_PORT: process.env.AGNES_PORT || '8765'
+};
 
 class DailyAutomation {
   constructor(agents, database) {
@@ -11,6 +24,8 @@ class DailyAutomation {
     this.isEnabled = true;
     this.healthCheckInterval = null;
     this.lastHealthCheck = null;
+    // Lazy-created in reportBatchVerdict so tests can stub it out.
+    this.telegram = null;
   }
 
   async initialize() {
@@ -105,6 +120,18 @@ class DailyAutomation {
     }
     this.isGeneratingBatch = true;
 
+    // Batch verdict: the permanent no-silent-skip record. Every item must end
+    // with outcome ok | scheduled | publish_failed | simulated — anything else
+    // is escalated loudly (Telegram + non-zero exit) instead of disappearing.
+    const batchVerdict = {
+      startedAt: new Date().toISOString(),
+      total: 0,
+      allSimulated: true,
+      published: [],
+      scheduled: [],
+      items: []
+    };
+
     try {
       this.logger.info('Starting daily content generation (1 Long-Form + 3 Shorts)...');
       
@@ -175,18 +202,44 @@ class DailyAutomation {
         productionData.languageName = item.language.name;
         productionData.publishSlot = item.publishSlot;
 
-        // Only attempt YouTube publishing when a real (non-simulated) video was produced
-        if (!productionData.assets?.finalVideo || productionData.assets.finalVideo.simulated) {
-          this.logger.warn(`[Video ${i + 1} - ${formatLabel}] ⚠️ No real video produced (missing key/FFmpeg) — skipping publish; fix the ✗ items in the startup capability check.`);
+        // ────────────────────────────────────────────────────────────
+        // PERMANENT NO-SILENT-SKIP POLICY
+        // A batch only counts as success when a real (non-simulated) mp4 was
+        // rendered AND uploaded/scheduled. A simulated/missing video must
+        // never be invisible: it is escalated to Telegram and remembered in
+        // the batch verdict so the cron script exits non-zero and GitHub
+        // Actions marks the run red with an alert (root cause of the
+        // September "workflow green but nothing published" gap).
+        // ────────────────────────────────────────────────────────────
+        batchVerdict.total++;
+        const finalVideoAsset = productionData.assets?.finalVideo;
+        const simulatedVideo = !finalVideoAsset
+          || finalVideoAsset.simulated
+          || path.extname(String(finalVideoAsset.path || '')).toLowerCase() !== '.mp4';
+
+        if (simulatedVideo) {
+          const reason = finalVideoAsset
+            ? 'render produced a placeholder instead of an mp4 (missing AGNES_API_KEY / AI keys / FFmpeg?)'
+            : 'render produced no video asset at all';
+          this.logger.error(`[Video ${i + 1} - ${formatLabel}] ✗ NO REAL VIDEO — ${reason}. NOT uploading a placeholder to YouTube; this run counts as FAILED, not success.`);
+          batchVerdict.items.push({
+            index: i + 1,
+            format: formatLabel,
+            topic: strategy.topic,
+            language: item.language.code,
+            outcome: 'simulated',
+            reason
+          });
           await this.logAutomationEvent('daily_content_generation', 'error', {
             contentId: productionData.id,
             topic: strategy.topic,
             isShort,
             language: item.language.code,
-            error: 'simulated video, publish skipped'
+            error: `no real video: ${reason}`
           });
           continue;
         }
+        batchVerdict.allSimulated = false;
 
         // Schedule for publishing
         const scheduleEntry = await this.agents.publishing.scheduleContent(productionData);
@@ -194,6 +247,11 @@ class DailyAutomation {
           scheduleEntry.isShort = isShort;
           scheduleEntry.language = item.language.code;
           this.logger.info(`[Video ${i + 1} - ${formatLabel}] Scheduled and queued for publication`);
+          batchVerdict.scheduled.push({ index: i + 1, format: formatLabel, topic: strategy.topic });
+          batchVerdict.items.push({ index: i + 1, format: formatLabel, topic: strategy.topic, language: item.language.code, outcome: 'scheduled' });
+        } else {
+          // A real video that can't be scheduled is still a loud failure.
+          batchVerdict.items.push({ index: i + 1, format: formatLabel, topic: strategy.topic, language: item.language.code, outcome: 'publish_failed', reason: 'scheduleContent returned null' });
         }
 
         // Direct Immediate Publish & Upload to YouTube (Permanent Fix for Ephemeral Cloud/Serverless)
@@ -202,9 +260,16 @@ class DailyAutomation {
           const published = await this.agents.publishing.publishContent(productionData.id);
           if (published && published.youtubeUrl) {
             this.logger.success(`[Video ${i + 1} - ${formatLabel}] ✅ Successfully published to YouTube: ${published.youtubeUrl}`);
+            batchVerdict.published.push({
+              index: i + 1,
+              format: formatLabel,
+              title: published.title,
+              url: published.youtubeUrl
+            });
           }
         } catch (pubErr) {
           this.logger.error(`[Video ${i + 1} - ${formatLabel}] Direct YouTube upload error:`, pubErr.message);
+          batchVerdict.items.push({ index: i + 1, format: formatLabel, topic: strategy.topic, language: item.language.code, outcome: 'publish_failed', reason: pubErr.message });
           // Don't lose the video: it stays in the queue for the 15-min processor and
           // retry passes, so a transient upload error can't silently drop a video.
           await this.processPublishQueue().catch(() => {});
@@ -220,11 +285,15 @@ class DailyAutomation {
           scheduledFor: productionData.scheduledPublishTime
         });
 
+        if (!batchVerdict.items.some(it => it.index === i + 1 && it.format === formatLabel)) {
+          batchVerdict.items.push({ index: i + 1, format: formatLabel, topic: strategy.topic, language: item.language.code, outcome: 'ok' });
+        }
+
         await new Promise(res => setTimeout(res, 2000));
       }
 
       timer.end();
-      this.logger.success('Daily batch (1 Short + 1 Long-Form) generated & scheduled successfully');
+      await this.reportBatchVerdict(batchVerdict);
 
       // Record the generation date so missed-day catch-up and frequency limits work
       await this.db.setSetting('last_content_generation', new Date().toISOString()).catch(() => {});
@@ -238,9 +307,128 @@ class DailyAutomation {
 
       // Send notification about failure
       await this.sendFailureNotification('Daily Content Generation', error);
+
+      // Never end silently: the verdict (partial progress included) is
+      // escalated before the error propagates to the cron script, which turns
+      // it into a non-zero exit for GitHub Actions.
+      await this.reportBatchVerdict(batchVerdict).catch(() => {});
+      throw error;
     } finally {
       this.isGeneratingBatch = false;
     }
+  }
+
+  // ────────────────────────────────────────────────────────────────────
+  // Permanent no-silent-skip machinery
+  // ────────────────────────────────────────────────────────────────────
+
+  /**
+   * Bring the vendored Agnes Video Generator service up when a key is set.
+   * Returns true when the service is (or becomes) reachable at AGNES_PORT.
+   * Best-effort: any error just logs — the FFmpeg chain remains the fallback.
+   */
+  async ensureAgnesService() {
+    if (!AGNES_ENV.AGNES_API_KEY) {
+      return false;
+    }
+
+    const port = AGNES_ENV.AGNES_PORT;
+    const host = AGNES_ENV.AGNES_HOST;
+    const healthUrl = `http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${port}/api/health`;
+
+    const isUp = async () => {
+      try {
+        const axios = require('axios');
+        const res = await axios.get(healthUrl, { timeout: 3000 });
+        return res.status >= 200 && res.status < 500;
+      } catch (_) {
+        return false;
+      }
+    };
+
+    if (await isUp()) {
+      this.logger.info(`Agnes video service already running at ${healthUrl}`);
+      return true;
+    }
+
+    // venv python inside the vendored repo (created by bin/cli.js / setup below)
+    const venvPython = process.platform === 'win32'
+      ? path.join(AGNES_SERVICE_DIR, '.venv', 'Scripts', 'python.exe')
+      : path.join(AGNES_SERVICE_DIR, '.venv', 'bin', 'python');
+    const hasVenv = await fs.access(venvPython).then(() => true).catch(() => false);
+    if (!hasVenv) {
+      this.logger.warn(`Agnes service not installed (no venv at ${venvPython}). Run: node vendor/agnes-video-generator/bin/cli.js --port ${port} --no-open`);
+      return false;
+    }
+
+    this.logger.info(`Starting Agnes video service at ${healthUrl}...`);
+    const child = spawn(venvPython, ['server.py'], {
+      cwd: AGNES_SERVICE_DIR,
+      env: {
+        ...process.env,
+        ...AGNES_ENV,
+        HOST: host,
+        PORT: port
+      },
+      stdio: 'ignore',
+      detached: process.platform !== 'win32'
+    });
+    child.on('error', err => this.logger.warn(`Agnes service spawn failed: ${err.message}`));
+    if (process.platform !== 'win32') {
+      child.unref();
+    }
+
+    // Wait up to 90s for the FastAPI server to answer
+    for (let i = 0; i < 45; i++) {
+      if (await isUp()) {
+        this.logger.info('Agnes video service is ready');
+        return true;
+      }
+      await new Promise(res => setTimeout(res, 2000));
+    }
+    this.logger.warn('Agnes video service did not become ready in 90s — continuing without it');
+    return false;
+  }
+
+  /**
+   * Print the batch verdict and escalate any failure to Telegram.
+   * A batch is a full success only when at least one real video reached
+   * YouTube (published) or was scheduled with a real mp4 behind it.
+   */
+  async reportBatchVerdict(batchVerdict) {
+    const publishedCount = batchVerdict.published.length;
+    const scheduledCount = batchVerdict.scheduled.length;
+    const simulatedItems = batchVerdict.items.filter(it => it.outcome === 'simulated');
+    const failedItems = batchVerdict.items.filter(it => it.outcome === 'publish_failed');
+
+    const lines = batchVerdict.items.map(it => {
+      const mark = it.outcome === 'simulated' ? '✗' : (it.outcome === 'publish_failed' ? '⚠️' : '✓');
+      const extra = it.reason ? ` — ${it.reason}` : '';
+      return `  ${mark} #${it.index} [${it.format}] ${it.topic || ''}${extra}`;
+    });
+
+    const summary = [
+      `Batch verdict: total=${batchVerdict.total} published=${publishedCount} scheduled=${scheduledCount} simulated=${simulatedItems.length} publishFailed=${failedItems.length}`,
+      ...lines
+    ].join('\n');
+    this.logger.info(summary);
+
+    const batchFailed = publishedCount === 0 && scheduledCount === 0;
+    if (batchFailed) {
+      if (!this.telegram) {
+        const { TelegramNotifier } = require('../utils/telegram-notifier');
+        this.telegram = new TelegramNotifier();
+      }
+      const problem = simulatedItems.length > 0
+        ? `NO REAL VIDEO WAS RENDERED (${simulatedItems.length} placeholder result${simulatedItems.length === 1 ? '' : 's'}).\nLikely cause: missing AGNES_API_KEY / AI provider keys / FFmpeg in the run environment.`
+        : 'The batch finished without a single publishable video (no publish and no schedule entry).';
+      const msg = `🚨 <b>DAILY AUTOMATION FAILED — NOTHING WAS PUBLISHED</b>\n\n${problem}\n\n${summary}\n\nCheck the GitHub Actions log of the latest run.`;
+      await this.telegram.sendMessage(msg).catch(err => {
+        this.logger.error('Telegram escalation failed:', err.message);
+      });
+    }
+
+    return !batchFailed;
   }
 
   async shouldGenerateContentToday() {

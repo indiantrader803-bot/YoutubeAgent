@@ -20,7 +20,7 @@ const logger = new Logger('GitHubWorkflowRunner');
 
 async function runStandaloneAutomation() {
   logger.info('🚀 Starting 100% Serverless GitHub Actions Video Automation Pipeline...');
-  
+
   const db = new Database();
   await db.initialize();
 
@@ -48,15 +48,78 @@ async function runStandaloneAutomation() {
   }
 
   const dailyAutomation = new DailyAutomation(agents, db);
-  await dailyAutomation.runDailyContentGeneration();
-  await dailyAutomation.processPublishQueue(true);
-  await dailyAutomation.retryFailedPublishes();
+
+  // Agnes is a free real-render engine (vendored in vendor/agnes-video-generator):
+  // when AGNES_API_KEY is set, its service is brought up so production can use
+  // it; without a key the pipeline behaves exactly as before (FFmpeg chain).
+  let agnesUp = false;
+  try {
+    agnesUp = await dailyAutomation.ensureAgnesService();
+  } catch (agnesErr) {
+    logger.warn(`Agnes service startup skipped: ${agnesErr.message}`);
+  }
+  if (!agnesUp) {
+    logger.info('Agnes renderer not enabled (set AGNES_API_KEY to activate it).');
+  }
+
+  let generationFailed = false;
+  try {
+    await dailyAutomation.runDailyContentGeneration();
+  } catch (genErr) {
+    // The batch already escalated (Telegram alert + verdict). Keep going:
+    // queued entries from earlier runs still deserve a publish attempt and
+    // the failed-publish retry pass.
+    generationFailed = true;
+    logger.error(`Daily batch failed: ${genErr.message}`);
+  }
+
+  // Always run the queue + retry passes — even after a failed batch — so a
+  // transient upload error or an entry from an earlier failed run still
+  // reaches YouTube instead of silently expiring in the database.
+  try {
+    await dailyAutomation.processPublishQueue(true);
+  } catch (queueErr) {
+    logger.error(`Publish queue processing failed: ${queueErr.message}`);
+  }
+  try {
+    await dailyAutomation.retryFailedPublishes();
+  } catch (retryErr) {
+    logger.error(`Retry pass failed: ${retryErr.message}`);
+  }
+
+  // ── Run verdict → exit code ────────────────────────────────────────────
+  // The permanent fix for "workflow green but nothing published": this script
+  // computes the REAL outcome from the publish_schedule table and exits
+  // non-zero when nothing got published today, so GitHub Actions marks the
+  // run red and the Telegram alert fires.
+  let publishedToday = 0;
+  try {
+    const rows = await db.getAllRows(
+      "SELECT COUNT(*) AS n FROM publish_schedule WHERE status = 'published' AND published_at >= datetime('now', '-1 day')"
+    );
+    publishedToday = rows[0]?.n || 0;
+  } catch (countErr) {
+    logger.warn(`Could not count today's publishes: ${countErr.message}`);
+  }
 
   const telegram = new TelegramNotifier();
-  await telegram.sendMessage('🎬 <b>Viral Video Factory Run Finished!</b>\n\nDaily batch (1 long-form + 3 Shorts) successfully generated & published live on YouTube!');
+  if (publishedToday > 0) {
+    await telegram.sendMessage(
+      `🎬 <b>Viral Video Factory Run Finished!</b>\n\nToday's uploads: <b>${publishedToday}</b> video(s) live or scheduled on YouTube.${generationFailed ? '\n\n⚠️ (the generation batch itself reported an error — check the Actions log)' : ''}`
+    ).catch(() => {});
+    logger.success(`✅ Pipeline finished — ${publishedToday} video(s) published/scheduled today`);
+    process.exit(generationFailed ? 1 : 0);
+  }
 
-  logger.success('✅ Serverless GitHub Actions Video Generation Pipeline Finished!');
-  process.exit(0);
+  const failMsg = generationFailed
+    ? 'The generation batch crashed before any video reached the publish queue.'
+    : 'The batch completed but produced no publishable real video (simulated renders are rejected, never uploaded).';
+  await telegram.sendMessage(
+    `🚨 <b>DAILY AUTOMATION DID NOT PUBLISH</b>\n\n${failMsg}\n\nCheck the GitHub Actions log of the latest run for the batch verdict and fix the environment (AGNES_API_KEY / AI keys / FFmpeg).`
+  ).catch(() => {});
+
+  logger.error(`❌ Pipeline finished with NOTHING published today (generationFailed=${generationFailed})`);
+  process.exit(1);
 }
 
 runStandaloneAutomation().catch(async (err) => {

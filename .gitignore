@@ -89,3 +89,10 @@ data/videos/
 data/thumbnails/
 data/production/
 vendor/OpenMontage/
+
+# Agnes video generator (vendored renderer) local state
+vendor/agnes-video-generator/.venv/
+vendor/agnes-video-generator/.agnes_config/
+# 74MB of CJK subtitle fonts — kept out of git; present in local clones,
+# renders fall back cleanly without them
+vendor/agnes-video-generator/resource/fonts/

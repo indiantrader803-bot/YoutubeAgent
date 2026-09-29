@@ -397,6 +397,36 @@ class AIVideoGenerator {
       }
     }
 
+    // 3. Try the vendored Agnes Video Generator (free AI text-to-video with
+    //    Edge-TTS narration + burned-in subtitles). Activated by AGNES_API_KEY;
+    //    requires its local Python service to be running (DailyAutomation
+    //    brings it up via ensureAgnesService() in the cron path).
+    if (process.env.AGNES_API_KEY && !this.agnesClient) {
+      const { AgnesVideoClient } = require('./agnes-video-client');
+      this.agnesClient = new AgnesVideoClient();
+    }
+    if (this.agnesClient) {
+      try {
+        this.logger.info('🚀 Launching Agnes Video Generator render (free AI text-to-video)...');
+        const narrationText = script?.narrationText
+          || script?.hook?.text
+          || script?.title
+          || 'A short story worth telling. Subscribe for more.';
+        await this.agnesClient.renderManuscriptVideo(
+          {
+            text: narrationText,
+            language: script?.language || 'en',
+            isShort,
+            title: script?.title
+          },
+          outputPath
+        );
+        return outputPath;
+      } catch (agnesErr) {
+        this.logger.warn(`Agnes renderer unavailable or failed (${agnesErr.message}). Falling back to the FFmpeg stock-footage chain...`);
+      }
+    }
+
     this.logger.info('Generating dynamic video with real stock footage and AI visual scenes...');
 
     const tempDir = path.join(path.dirname(outputPath), `temp_render_${Date.now()}`);

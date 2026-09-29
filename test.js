@@ -22,6 +22,8 @@ class SystemTest {
       { name: 'Publishing Safety', test: () => this.testPublishingSafety() },
       { name: 'Multi-Provider Credential Validation', test: () => this.testCredentialValidation() },
       { name: 'Placeholder Scheduling Guard', test: () => this.testPlaceholderSchedulingGuard() },
+      { name: 'Agnes Video Client', test: () => this.testAgnesVideoClient() },
+      { name: 'No-Silent-Skip Verdict', test: () => this.testNoSilentSkipVerdict() },
       { name: 'FFmpeg Resolution', test: () => this.testFFmpegResolution() },
       { name: 'Gemini Media Provider Selection', test: () => this.testGeminiMediaProvider() },
       { name: 'Slideshow Renderer', test: () => this.testSlideshowRenderer() },
@@ -365,6 +367,83 @@ class SystemTest {
     }
 
     this.logger.info('Placeholder scheduling guard test completed successfully');
+  }
+
+  // The vendored Agnes renderer client must never fake success: without a
+  // configured key it reports unconfigured, and voice selection stays in the
+  // supported language roster.
+  async testAgnesVideoClient() {
+    const { AgnesVideoClient, voiceForLanguage, EDGE_TTS_VOICES } = require('./utils/agnes-video-client');
+
+    const savedKey = process.env.AGNES_API_KEY;
+    delete process.env.AGNES_API_KEY;
+    try {
+      const client = new AgnesVideoClient();
+      if (client.isConfigured()) {
+        throw new Error('Agnes client reports configured without AGNES_API_KEY');
+      }
+      const available = await client.isServiceAvailable();
+      if (available !== false) {
+        throw new Error('Agnes service probe should fail when no service is running');
+      }
+    } finally {
+      if (savedKey !== undefined) {
+        process.env.AGNES_API_KEY = savedKey;
+      }
+    }
+
+    for (const [lang, expectedVoice] of Object.entries(EDGE_TTS_VOICES)) {
+      if (voiceForLanguage(lang) !== expectedVoice) {
+        throw new Error(`voiceForLanguage(${lang}) did not map to ${expectedVoice}`);
+      }
+    }
+    if (voiceForLanguage('xx') !== EDGE_TTS_VOICES.en) {
+      throw new Error('voiceForLanguage must fall back to English for unknown codes');
+    }
+    this.logger.info('Agnes client guards verified (unconfigured = unavailable, voice map sane)');
+  }
+
+  // Permanent no-silent-skip guarantee: reportBatchVerdict() must return
+  // false (and try to alert) when nothing was published/scheduled, and true
+  // when at least one real video went out.
+  async testNoSilentSkipVerdict() {
+    const { DailyAutomation } = require('./schedules/daily-automation');
+    const automation = new DailyAutomation({}, { executeQuery: async () => {} });
+    // Stub the notifier: a failing verdict must NOT spam the real Telegram
+    // channel from the test suite.
+    let alertsSent = 0;
+    automation.telegram = { sendMessage: async () => { alertsSent++; } };
+
+    const allFailed = await automation.reportBatchVerdict({
+      startedAt: new Date().toISOString(),
+      total: 2,
+      allSimulated: true,
+      published: [],
+      scheduled: [],
+      items: [
+        { index: 1, format: 'Short', topic: 'T1', outcome: 'simulated', reason: 'placeholder' },
+        { index: 2, format: 'Long', topic: 'T2', outcome: 'simulated', reason: 'placeholder' }
+      ]
+    });
+    if (allFailed !== false) {
+      throw new Error('A batch with zero publishes/schedules must be reported as failed');
+    }
+    if (alertsSent !== 1) {
+      throw new Error('A fully-failed batch must trigger exactly one escalation alert');
+    }
+
+    const ok = await automation.reportBatchVerdict({
+      startedAt: new Date().toISOString(),
+      total: 2,
+      allSimulated: false,
+      published: [{ index: 1, format: 'Short', title: 'V', url: 'https://youtu.be/x' }],
+      scheduled: [],
+      items: [{ index: 1, format: 'Short', topic: 'T1', outcome: 'ok' }]
+    });
+    if (ok !== true) {
+      throw new Error('A batch with a real publish must be reported as success');
+    }
+    this.logger.info('No-silent-skip verdict logic verified');
   }
 
   async testFFmpegResolution() {
