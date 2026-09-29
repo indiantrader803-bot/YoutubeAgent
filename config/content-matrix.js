@@ -1,8 +1,8 @@
 // Content matrix: turns the viral-topics database into the daily production batch.
 //
-// Default daily output: 1 long-form video (8-12 min) + 3 Shorts derived from it
-// (hook-twist / myth-bust / countdown angles), rotating across 5 high-RPM
-// categories × 50 topics so content never repeats until the pool is exhausted.
+// Default daily output: 1 long-form video (8-12 min) + 3 Shorts, each video
+// from a DIFFERENT topic, rotating across 5 high-RPM categories × 50 topics so
+// content never repeats until the pool is exhausted.
 //
 // Configure via environment variables (see .env.example):
 //   CONTENT_TOPICS       – custom topic list, pipe-separated (overrides database)
@@ -137,18 +137,28 @@ function computeBestPublishTime(hour, timezone = UPLOAD_SCHEDULE.timezone) {
   return new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
 }
 
-// Build the batch for one run: 1 long-form + N Shorts derived from it.
-// The long-form topic walks the pool one slot per run (never repeating until
-// the pool is exhausted); Shorts reuse the same topic with distinct angles.
+// Build the batch for one run: 1 long-form + N Shorts, each from a DIFFERENT
+// topic. Slots walk the pool in an interleaved order — consecutive runs never
+// touch the same topic, and within a run the 4 videos always come from 4
+// different topics (never 4 clones of one theme).
 function buildDailyBatch(matrix, runIndex) {
   const { topicPool, languages, shortAngles, plan } = matrix;
-  const topic = topicPool[runIndex % topicPool.length];
+
+  // Interleave categories so every run samples the breadth of the database:
+  // slot i of run r = pool[(r * slotsPerRun + i) * 13 % poolSize]. 13 is
+  // coprime with 50, so the walk visits all 50 topics before repeating.
+  const slotsPerRun = 1 + Math.min(plan.shortsPerLong, shortAngles.length);
+  const stride = 13;
+  const topics = [];
+  for (let i = 0; i < slotsPerRun; i++) {
+    topics.push(topicPool[(runIndex * slotsPerRun + i) * stride % topicPool.length]);
+  }
   const language = languages[runIndex % languages.length];
 
   const batch = [{
     kind: 'long',
-    topic,
-    niche: topic.niches[0],
+    topic: topics[0],
+    niche: topics[0].niches[0],
     language,
     publishSlot: { hour: plan.schedule.longHour, timezone: plan.schedule.timezone }
   }];
@@ -156,13 +166,14 @@ function buildDailyBatch(matrix, runIndex) {
   const shortsCount = Math.min(plan.shortsPerLong, shortAngles.length);
   for (let s = 0; s < shortsCount; s++) {
     const angle = shortAngles[(runIndex + s) % shortAngles.length];
+    const shortTopic = topics[s + 1];
     batch.push({
       kind: 'short',
-      topic,
-      niche: topic.niches[0],
+      topic: shortTopic,
+      niche: shortTopic.niches[0],
       angleId: angle.id,
       angleInstruction: angle.instruction,
-      derivedFrom: topic.id,
+      derivedFrom: shortTopic.id,
       language,
       publishSlot: {
         hour: plan.schedule.shortHours[s % plan.schedule.shortHours.length],
