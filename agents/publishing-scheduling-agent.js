@@ -374,6 +374,14 @@ class PublishingSchedulingAgent {
     } catch (cmtErr) {
       this.logger.warn(`Engagement comment skipped for ${videoId}: ${cmtErr.message}`);
     }
+
+    // Playlist SEO: assign every upload to its niche playlist so search
+    // surfaces the topic page and viewers binge related videos (session time).
+    try {
+      await this.assignToNichePlaylist(videoId, videoTitle, isShort, videoLanguage);
+    } catch (plErr) {
+      this.logger.warn(`Playlist assignment skipped for ${videoId}: ${plErr.message}`);
+    }
     
     return videoUpload.data;
   }
@@ -393,6 +401,41 @@ class PublishingSchedulingAgent {
       }
     });
     this.logger.info(`Engagement comment posted on ${videoId}`);
+  }
+
+  // Niche-playlist SEO: match the upload title to a topic playlist and add it.
+  // Playlists are discovered once per process by name (no env config needed);
+  // failures (playlist renamed/deleted, duplicate insert) are non-fatal.
+  async assignToNichePlaylist(videoId, videoTitle, isShort, language) {
+    if (!this.youtube) return;
+
+    if (!this.nichePlaylists) {
+      const res = await this.youtube.playlists.list({ part: 'snippet', mine: true, maxResults: 50 });
+      this.nichePlaylists = {};
+      for (const pl of res.data.items || []) {
+        const t = (pl.snippet.title || '').toLowerCase();
+        if (t.includes('ai') || t.includes('future')) this.nichePlaylists.ai = pl.id;
+        else if (t.includes('cartoon') || t.includes('storytime')) this.nichePlaylists.cartoon = pl.id;
+        else if (t.includes('trading') || t.includes('chart')) this.nichePlaylists.trading = pl.id;
+      }
+      this.logger.info(`Niche playlists discovered: ${Object.keys(this.nichePlaylists).join(', ') || 'none'}`);
+    }
+
+    const title = String(videoTitle || '').toLowerCase();
+    const matchers = [
+      { key: 'trading', re: /trading|stock|market|chart|candle|price action|breakout|crypto|forex/ },
+      { key: 'cartoon', re: /cartoon|story|storytime|backbench|exam|school|animation|kahani|student/ },
+      { key: 'ai', re: /\bai\b|artificial|intelligen|automation|robot|future of work|job/ }
+    ];
+    const hit = matchers.find(m => m.re.test(title));
+    const playlistId = hit && this.nichePlaylists[hit.key];
+    if (!playlistId) return;
+
+    await this.youtube.playlistItems.insert({
+      part: 'snippet',
+      requestBody: { snippet: { playlistId, resourceId: { kind: 'youtube#video', videoId } } }
+    });
+    this.logger.info(`Video ${videoId} added to niche playlist (${hit.key})`);
   }
 
   async getVideoStream(videoPath) {
