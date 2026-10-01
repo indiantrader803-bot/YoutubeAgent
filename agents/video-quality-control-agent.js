@@ -168,22 +168,28 @@ Return ONLY valid JSON: {"compliant": true/false, "risk": "none|low|medium|high"
 
     try {
       const meta = await getVideoMetadata(videoPath);
-      const vStream = (meta.videoStreamName || '').length > 0;
-      const aStream = (meta.audioStreamName || '').length > 0;
-      if (!vStream) { ok = false; problems.push('no video stream in mp4'); }
+      // Real field names from @remotion/renderer's getVideoMetadata:
+      // codec (video stream, e.g. 'h264'), audioCodec (e.g. 'aac'),
+      // durationInSeconds, fps, width, height.
+      const vStream = Boolean(meta.codec);
+      const aStream = Boolean(meta.audioCodec);
+      const duration = Number(meta.durationInSeconds || 0);
+      if (!vStream) { ok = false; problems.push('no video stream in mp4 (corrupt or placeholder render)'); }
       if (!aStream) { warnings.push('no audio stream in mp4'); }
-      if (!meta.durationSec || meta.durationSec < 3) { ok = false; problems.push(`duration too short (${meta.durationSec}s)`); }
-      if (meta.durationSec > 15 * 60) { warnings.push(`unusually long (${Math.round(meta.durationSec)}s)`); }
+      if (!duration || duration < 3) { ok = false; problems.push(`duration too short (${Math.round(duration * 10) / 10}s)`); }
+      if (duration > 15 * 60) { warnings.push(`unusually long (${Math.round(duration)}s)`); }
       const fps = Number(meta.fps || 0);
-      if (fps < 15) { warnings.push(`low fps (${fps})`); }
+      if (fps > 0 && fps < 15) { warnings.push(`low fps (${fps})`); }
       return {
         ok,
         problems,
         warnings,
-        durationSec: Math.round((meta.durationSec || 0) * 10) / 10,
+        durationSec: Math.round(duration * 10) / 10,
         width: meta.width,
         height: meta.height,
         fps,
+        codec: meta.codec,
+        audioCodec: meta.audioCodec,
         sizeKB: Math.round(stat.size / 1024)
       };
     } catch (err) {
