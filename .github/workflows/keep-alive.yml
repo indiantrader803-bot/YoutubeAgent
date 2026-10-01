@@ -10,6 +10,10 @@ on:
 jobs:
   run-daily-automation:
     runs-on: ubuntu-latest
+    # The owner stores all secrets in the repo Environment "ENV" (id
+    # 19935994265) — declaring it here is what makes YOUTUBE_*/GMAIL_*/etc.
+    # visible to the daily run. No protection rules => zero wait time.
+    environment: ENV
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
