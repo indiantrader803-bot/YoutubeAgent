@@ -6,10 +6,6 @@ on:
     # long-form, keeping the channel under YouTube's daily upload cap.
     - cron: '30 0 * * *'
   workflow_dispatch:
-  push:
-    # TEMPORARY: live-deployment trigger (removed right after the run starts).
-    branches: [master]
-    paths: ['.github/workflows/keep-alive.yml']
 
 jobs:
   run-daily-automation:
