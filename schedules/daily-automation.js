@@ -4,6 +4,8 @@ const fs = require('fs').promises;
 const { spawn } = require('child_process');
 const { Logger } = require('../utils/logger');
 const { loadContentMatrix, getRunIndex, buildDailyBatch, computeBestPublishTime } = require('../config/content-matrix');
+const { EmailNotifier } = require('../utils/email-notifier');
+const { STYLE_ROTATION } = require('../agents/video-quality-control-agent');
 
 // Vendored Agnes Video Generator (free AI text-to-video renderer, MIT).
 // One free key from https://platform.agnes-ai.com enables it as a real-render
@@ -26,6 +28,9 @@ class DailyAutomation {
     this.lastHealthCheck = null;
     // Lazy-created in reportBatchVerdict so tests can stub it out.
     this.telegram = null;
+    // Owner email channel for manual actions and daily verdicts. Tests may
+    // replace this with a stub; the constructor is side-effect-free.
+    this.email = new EmailNotifier();
   }
 
   async initialize() {
@@ -171,12 +176,18 @@ class DailyAutomation {
         // AI's tone, examples and SEO vocabulary.
         strategy.categoryId = item.topic.categoryId;
         strategy.categoryName = item.topic.categoryName;
-        this.logger.info(`[Video ${i + 1}] Strategy topic: ${strategy.topic} [${item.language.name}]`);
+        // Style variety: rotate the storytelling style per video (documentary /
+        // energetic host / storytime / explainer / myth-hunter / list-shock) so
+        // the channel never publishes two videos with the same feel in a row.
+        const style = STYLE_ROTATION[(getRunIndex() * dailyBatch.length + i) % STYLE_ROTATION.length];
+        strategy.styleId = style.id;
+        strategy.styleInstruction = style.instruction;
+        this.logger.info(`[Video ${i + 1}] Strategy topic: ${strategy.topic} [${item.language.name}] [style: ${style.id}]`);
 
         // Generate script
         const script = await this.agents.scriptWriter.generateScript(strategy);
 
-        // Generate thumbnail
+        // Thumbnail
         const thumbnail = await this.agents.thumbnailDesigner.generateThumbnail(script);
 
         // Optimize SEO (Strict YouTube Guidelines + Copyright Safe)
@@ -197,6 +208,60 @@ class DailyAutomation {
           seo: seoData,
           isShort
         });
+
+        // ────────────────────────────────────────────────────────────
+        // MULTI-AGENT VIDEO QC GATE — a video only goes to YouTube when the
+        // technical probe, the AI virality scorer and the AI policy reviewer
+        // all clear it. Rejected videos are reworked once with QC feedback,
+        // and if still rejected they are escalated to the owner by email
+        // instead of being uploaded or silently dropped.
+        // ────────────────────────────────────────────────────────────
+        const qcAgent = this.agents.qualityControl;
+        let qcVerdict = null;
+        if (qcAgent && typeof qcAgent.reviewVideo === 'function') {
+          qcVerdict = await qcAgent.reviewVideo(productionData.assets?.finalVideo?.path, {
+            script,
+            strategy,
+            isShort
+          }).catch(qcErr => {
+            this.logger.error(`QC chain crashed: ${qcErr.message}`);
+            return null;
+          });
+        }
+        if (qcVerdict && !qcVerdict.approved) {
+          this.logger.warn(`[Video ${i + 1}] QC rejected (score ${qcVerdict.score}) — attempting one rework pass with QC feedback...`);
+          if (strategy && typeof strategy === 'object') {
+            strategy.qcFeedback = (qcVerdict.reasons || []).join('; ').slice(0, 500);
+            strategy.qcImprovement = (qcVerdict.agents && qcVerdict.agents.virality && qcVerdict.agents.virality.improvement) || '';
+          }
+          const script2 = await this.agents.scriptWriter.generateScript(strategy);
+          const seoData2 = await this.agents.seoOptimizer.optimize(script2, strategy);
+          const productionData2 = await this.agents.production.processContent({
+            strategy, script: script2, thumbnail, seo: seoData2, isShort
+          });
+          qcVerdict = await qcAgent.reviewVideo(productionData2.assets?.finalVideo?.path, { script: script2, strategy, isShort }).catch(() => null);
+          if (qcVerdict && qcVerdict.approved) {
+            this.logger.info(`[Video ${i + 1}] QC approved after rework (score ${qcVerdict.score})`);
+            Object.assign(productionData, productionData2);
+          } else {
+            const scoreTxt = qcVerdict ? qcVerdict.score : 'unknown';
+            this.logger.error(`[Video ${i + 1}] QC rejected twice (score ${scoreTxt}) — holding video back and alerting the owner.`);
+            await this.email.send(
+              `Video held back by quality gate: ${script.title}`,
+              `QC agents rejected this video twice (final score ${scoreTxt}).\n\nReasons:\n${(qcVerdict && qcVerdict.reasons || []).map(r => `  • ${r}`).join('\n')}\n\nThe video was NOT uploaded. It stays in production storage and the daily pipeline continues with the remaining videos.`
+            ).catch(() => {});
+            batchVerdict.total++;
+            batchVerdict.items.push({
+              index: i + 1,
+              format: formatLabel,
+              topic: strategy.topic,
+              language: item.language.code,
+              outcome: 'qc_rejected',
+              reason: `score ${scoreTxt}: ${(qcVerdict && qcVerdict.reasons || []).join('; ')}`
+            });
+            continue;
+          }
+        }
         productionData.isShort = isShort;
         productionData.language = item.language.code;
         productionData.languageName = item.language.name;
@@ -400,18 +465,33 @@ class DailyAutomation {
     const scheduledCount = batchVerdict.scheduled.length;
     const simulatedItems = batchVerdict.items.filter(it => it.outcome === 'simulated');
     const failedItems = batchVerdict.items.filter(it => it.outcome === 'publish_failed');
+    const qcRejectedItems = batchVerdict.items.filter(it => it.outcome === 'qc_rejected');
 
     const lines = batchVerdict.items.map(it => {
-      const mark = it.outcome === 'simulated' ? '✗' : (it.outcome === 'publish_failed' ? '⚠️' : '✓');
+      const mark = it.outcome === 'simulated' ? '✗'
+        : (it.outcome === 'publish_failed' ? '⚠️'
+        : (it.outcome === 'qc_rejected' ? '🛡️' : '✓'));
       const extra = it.reason ? ` — ${it.reason}` : '';
       return `  ${mark} #${it.index} [${it.format}] ${it.topic || ''}${extra}`;
     });
 
     const summary = [
-      `Batch verdict: total=${batchVerdict.total} published=${publishedCount} scheduled=${scheduledCount} simulated=${simulatedItems.length} publishFailed=${failedItems.length}`,
+      `Batch verdict: total=${batchVerdict.total} published=${publishedCount} scheduled=${scheduledCount} simulated=${simulatedItems.length} publishFailed=${failedItems.length} qcRejected=${qcRejectedItems.length}`,
       ...lines
     ].join('\n');
     this.logger.info(summary);
+
+    // The owner gets every verdict in their inbox (success digests keep trust;
+    // failures arrive as critical alerts).
+    try {
+      if (this.email && this.email.enabled) {
+        if (publishedCount > 0) {
+          await this.email.sendDailySummary(
+            `${publishedCount} video(s) published today.\n\n${summary}`
+          );
+        }
+      }
+    } catch (_emailErr) { /* email must never break a run */ }
 
     const batchFailed = publishedCount === 0 && scheduledCount === 0;
     if (batchFailed) {
@@ -419,13 +499,40 @@ class DailyAutomation {
         const { TelegramNotifier } = require('../utils/telegram-notifier');
         this.telegram = new TelegramNotifier();
       }
+      const credentialProblem = simulatedItems.length === 0 && failedItems.some(it => /credential|not initialised|not authenticated|OAuth/i.test(it.reason || ''));
       const problem = simulatedItems.length > 0
         ? `NO REAL VIDEO WAS RENDERED (${simulatedItems.length} placeholder result${simulatedItems.length === 1 ? '' : 's'}).\nLikely cause: missing AGNES_API_KEY / AI provider keys / FFmpeg in the run environment.`
-        : 'The batch finished without a single publishable video (no publish and no schedule entry).';
+        : credentialProblem
+          ? 'YouTube credentials were rejected in this environment. The stored OAuth token works locally, but the GitHub secrets (YOUTUBE_CLIENT_ID / YOUTUBE_CLIENT_SECRET / YOUTUBE_REFRESH_TOKEN) are missing or stale on the repo.'
+          : 'The batch finished without a single publishable video (no publish and no schedule entry).';
       const msg = `🚨 <b>DAILY AUTOMATION FAILED — NOTHING WAS PUBLISHED</b>\n\n${problem}\n\n${summary}\n\nCheck the GitHub Actions log of the latest run.`;
       await this.telegram.sendMessage(msg).catch(err => {
         this.logger.error('Telegram escalation failed:', err.message);
       });
+
+      // Email escalation with concrete recovery steps — this survives even
+      // when the Telegram bot is unreachable.
+      try {
+        await this.email.sendManualActionNeeded(
+          'daily automation published nothing',
+          credentialProblem
+            ? [
+              'Open the repo on GitHub → Settings → Secrets and variables → Actions.',
+              'Set/refresh these secrets from your local config files:',
+              '   • YOUTUBE_CLIENT_ID      ← config/credentials.json → youtube.client_id',
+              '   • YOUTUBE_CLIENT_SECRET  ← config/credentials.json → youtube.client_secret',
+              '   • YOUTUBE_REFRESH_TOKEN  ← config/tokens.json → youtube.refresh_token',
+              'Then re-run the workflow from the Actions tab to confirm uploads work again.'
+            ]
+            : [
+              'Open the latest GitHub Actions run and read the failure reason at the bottom of the log.',
+              'If videos were simulated (placeholders), check the AI/render keys in repo secrets (AGNES_API_KEY, GROQ_API_KEY, NVIDIA_API_KEY).',
+              'Reply to this email or re-run the workflow after fixing the secret.'
+            ]
+        );
+      } catch (emailErr) {
+        this.logger.warn(`Owner email escalation failed: ${emailErr.message}`);
+      }
     }
 
     return !batchFailed;

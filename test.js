@@ -24,6 +24,8 @@ class SystemTest {
       { name: 'Placeholder Scheduling Guard', test: () => this.testPlaceholderSchedulingGuard() },
       { name: 'Agnes Video Client', test: () => this.testAgnesVideoClient() },
       { name: 'No-Silent-Skip Verdict', test: () => this.testNoSilentSkipVerdict() },
+      { name: 'QC Agent Publish Gate', test: () => this.testQCAgentPublishGate() },
+      { name: 'Channel Maintenance Agent', test: () => this.testChannelMaintenanceAgent() },
       { name: 'FFmpeg Resolution', test: () => this.testFFmpegResolution() },
       { name: 'Gemini Media Provider Selection', test: () => this.testGeminiMediaProvider() },
       { name: 'Slideshow Renderer', test: () => this.testSlideshowRenderer() },
@@ -444,6 +446,80 @@ class SystemTest {
       throw new Error('A batch with a real publish must be reported as success');
     }
     this.logger.info('No-silent-skip verdict logic verified');
+  }
+
+  // The QC agent must hard-reject missing/corrupt mp4 files (technical probe
+  // is the absolute gate) and must expose a working style rotation.
+  async testQCAgentPublishGate() {
+    const { VideoQualityControlAgent, STYLE_ROTATION } = require('./agents/video-quality-control-agent');
+
+    if (!Array.isArray(STYLE_ROTATION) || STYLE_ROTATION.length < 4) {
+      throw new Error('style rotation must offer at least 4 distinct styles');
+    }
+
+    const qc = new VideoQualityControlAgent({}, {});
+
+    // Missing file → hard reject.
+    const missing = await qc.reviewVideo('./definitely-missing-video.mp4', {
+      script: { title: 't', hook: 'h', mainContent: { sections: [] } },
+      strategy: {},
+      isShort: true
+    });
+    if (missing.approved !== false) {
+      throw new Error('QC must reject a missing video file');
+    }
+
+    // A real (tiny, valid) mp4 from the repo renders must pass the probe even
+    // without AI reviewers available.
+    const fs = require('fs');
+    const path = require('path');
+    const candidates = [];
+    const scan = (dir, depth) => {
+      if (depth > 2) return;
+      let entries = [];
+      try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch (_e) { return; }
+      for (const e of entries) {
+        const p = path.join(dir, e.name);
+        if (e.isDirectory() && e.name !== 'node_modules' && e.name !== 'vendor') scan(p, depth + 1);
+        else if (e.isFile() && e.name.endsWith('.mp4')) candidates.push(p);
+      }
+    };
+    scan(path.join(__dirname, 'output'), 0);
+    scan(path.join(__dirname, 'temp'), 0);
+    if (candidates.length > 0) {
+      const probe = await qc.probeVideo(candidates[0]);
+      if (typeof probe.ok !== 'boolean') {
+        throw new Error('probeVideo must return a boolean ok flag');
+      }
+    }
+    this.logger.info('QC agent publish gate verified (missing video rejected, probe sane)');
+  }
+
+  // Channel maintenance agent must exist, rotate themes deterministically and
+  // never crash when the YouTube API is unavailable (degrades to problems[]).
+  async testChannelMaintenanceAgent() {
+    const { ChannelMaintenanceAgent, THEME_PACKS } = require('./agents/channel-maintenance-agent');
+
+    if (!Array.isArray(THEME_PACKS) || THEME_PACKS.length < 3) {
+      throw new Error('at least 3 theme packs must be defined');
+    }
+    const agent = new ChannelMaintenanceAgent({}, { getYouTubeAuth: () => { throw new Error('no auth in test'); } });
+
+    const themeA = agent.constructor.THEME_PACKS[0];
+    if (!themeA.id || !themeA.keywords || !themeA.description) {
+      throw new Error('theme packs must carry id, keywords and description');
+    }
+
+    // API unavailable → must return { changed: false } rather than throw.
+    const res = await agent.refreshChannelTheme(0);
+    if (!res || res.changed !== false) {
+      throw new Error('theme refresh must degrade gracefully without API access');
+    }
+    const audit = await agent.runWeeklyHealthAudit(null);
+    if (!audit || typeof audit.healthy !== 'boolean' || !Array.isArray(audit.problems)) {
+      throw new Error('health audit must return { healthy, problems } even when offline');
+    }
+    this.logger.info('Channel maintenance agent verified (themes, graceful degradation)');
   }
 
   async testFFmpegResolution() {

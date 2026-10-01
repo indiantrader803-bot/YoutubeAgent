@@ -55,6 +55,13 @@ jobs:
           # language in this list. Default below is US-targeted English only
           # (highest-RPM geo); add codes (hi es pt ar id …) to widen reach.
           CONTENT_LANGUAGES: "en"
+          # Quality gate: minimum combined QC-agent score for a video to be
+          # uploaded (technical probe + AI virality + AI policy review).
+          QC_MIN_SCORE: "70"
+          # Owner notification channel for manual actions and daily verdicts.
+          OWNER_EMAIL: "arnab.laha2018@gmail.com"
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           # Optional custom topics (pipe-separated, comma allowed inside a topic):
           # CONTENT_TOPICS: "Topic one|Topic two"
           # Daily output: 1 long-form + N Shorts derived from it (max 5 angles)
@@ -68,26 +75,16 @@ jobs:
           node scripts/run-automation-cron.js
 
       # The cron script exits non-zero when nothing was published — surface a
-      # Telegram alert even if the run itself failed to send one (belt & braces
-      # so a silent no-publish day can never hide behind a green workflow).
+      # Telegram + email alert even if the run itself failed to send one
+      # (belt & braces so a silent no-publish day can never hide behind a
+      # green workflow).
       - name: Alert on no-publish
         if: failure()
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
-        run: |
-          node -e "
-            const https = require('https');
-            const token = process.env.TELEGRAM_BOT_TOKEN;
-            const chat = process.env.TELEGRAM_CHANNEL_ID;
-            if (!token || !chat) { console.log('Telegram not configured'); process.exit(0); }
-            const body = JSON.stringify({
-              chat_id: chat,
-              parse_mode: 'HTML',
-              text: '🚨 <b>Daily automation run FAILED</b> — no video was published today. Check the GitHub Actions log (run ' + (process.env.GITHUB_RUN_ID || '') + ').'
-            });
-            const req = https.request({ hostname: 'api.telegram.org', path: '/bot' + token + '/sendMessage', method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) } });
-            req.on('error', () => {});
-            req.write(body); req.end();
-          "
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+          OWNER_EMAIL: "arnab.laha2018@gmail.com"
+        run: node scripts/alert-failure.js "no video was published in this run"
 

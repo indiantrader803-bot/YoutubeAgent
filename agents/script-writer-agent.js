@@ -241,6 +241,19 @@ class ScriptWriterAgent {
       ? 'Write in US English with vocabulary and phrasing natural for American viewers.\n'
       : '';
 
+    // Per-video narration style rotation (documentary / energetic host /
+    // storytime / explainer / myth-hunter / list-shock) so consecutive videos
+    // never share one voice or feel.
+    const styleGuidance = strategy.styleInstruction
+      ? `Narration style: ${strategy.styleInstruction}\n`
+      : '';
+    // QC rework feedback: when the quality agents rejected the previous cut,
+    // the retry must fix the exact critique instead of writing a fresh draft
+    // that repeats the same weaknesses.
+    const qcFeedbackGuidance = strategy.qcFeedback
+      ? `IMPORTANT: the previous version of this script was REJECTED by the quality-review agents. Fix these exact problems in this rewrite:\n${strategy.qcFeedback}\n${strategy.qcImprovement ? `Improvement hint: ${strategy.qcImprovement}\n` : ''}`
+      : '';
+
     const lengthGuidance = short
       ? `This is a YouTube Short. The ENTIRE spoken script must be under ${wordBudget} words (about ${SHORT_MAX_SECONDS} seconds). \
 Use exactly 3 sections of 2 short spoken bullets each, roughly 12 words per bullet. No filler, no long introductions.`
@@ -263,7 +276,7 @@ Language: ${strategy.languageName || language} (${language}) — Write the ENTIR
 ${accentGuidance}${angleGuidance}${lengthGuidance}
 Tone: ${template.tone}
 Pacing: ${short ? 'fast, every sentence must earn its place' : template.pacing}
-Keywords: ${(strategy.keywords || []).join(', ')}
+${styleGuidance}${qcFeedbackGuidance}Keywords: ${(strategy.keywords || []).join(', ')}
 Write spoken narration only (what the voiceover says). Do not include stage directions, headings, or timestamps.
 Avoid fabricated statistics, unsupported claims, and fake urgency.`;
 
@@ -298,6 +311,7 @@ Avoid fabricated statistics, unsupported claims, and fake urgency.`;
         tone: template.tone,
         pacing: template.pacing,
         videoStyle: 'storytime',
+        narrationStyle: strategy.styleId || 'storytime',
         style: 'cartoon',
         keywords: strategy.keywords || [],
         metadata: {
