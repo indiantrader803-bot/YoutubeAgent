@@ -59,6 +59,7 @@ class AIVideoGenerator {
     const { PexelsVideoProvider } = require('./pexels-video-provider');
     const { VideoAssembler } = require('./video-assembler');
     const { StorytimeAnimationEngine } = require('./storytime-animation-engine');
+    const { AICinematicEngine } = require('./ai-cinematic-engine');
     const { OpenMontageBridge } = require('./openmontage-bridge');
 
     this.ttsProvider = new TTSProvider();
@@ -67,6 +68,7 @@ class AIVideoGenerator {
     this.pexelsVideoProvider = new PexelsVideoProvider(credentials.pexels?.apiKey || process.env.PEXELS_API_KEY);
     this.videoAssembler = new VideoAssembler();
     this.storytimeEngine = new StorytimeAnimationEngine();
+    this.cinematicEngine = new AICinematicEngine();
     this.openMontage = new OpenMontageBridge();
   }
 
@@ -374,7 +376,26 @@ class AIVideoGenerator {
 
   async generateVideo(script, visualAssets, audioPath, outputPath) {
     const isShort = Boolean(script?.isShort || script?.video_type === 'shorts');
-    const isStorytime = script?.videoStyle === 'storytime' || script?.style === 'cartoon' || process.env.VIDEO_MODE !== 'stock';
+
+    // ── Visual style routing ──────────────────────────────────────────
+    // The daily batch rotates visualRenderer (cartoon / AI-cinematic / 3D /
+    // realistic / cloud-AI) so each upload looks different. Legacy scripts
+    // (videoStyle 'storytime' or style 'cartoon') keep the cartoon engine;
+    // scripts with no style marker default by VIDEO_MODE exactly as before.
+    const resolveTargetRenderer = () => {
+      const renderer = script?.visualRenderer || script?.metadata?.strategy?.visualRenderer;
+      if (renderer) return String(renderer);
+      const visual = String(script?.visualStyle || script?.metadata?.strategy?.visualStyle || '').toLowerCase();
+      if (visual === '2d-cartoon') return 'storytime';
+      if (visual === 'realistic') return 'stock';
+      if (visual === 'ai-cinematic') return 'cinematic';
+      if (visual === 'motion-3d') return 'cinematic3d';
+      if (visual === 'json2video-motion') return 'json2video';
+      if (script?.videoStyle === 'storytime' || script?.style === 'cartoon') return 'storytime';
+      return process.env.VIDEO_MODE === 'stock' ? 'stock' : 'storytime';
+    };
+    const targetRenderer = resolveTargetRenderer();
+    this.logger.info(`Visual renderer for "${script?.title || 'untitled'}": ${targetRenderer}${isShort ? ' (Short)' : ''}`);
 
     // 1. Try OpenMontage Studio Pipeline if requested
     if ((script?.pipeline === 'openmontage' || script?.videoStyle === 'openmontage') && this.openMontage) {
@@ -387,10 +408,36 @@ class AIVideoGenerator {
       }
     }
 
-    // 2. Try 2D Cartoon Storytime Animation Engine (Not Your Type / Lil Yash Style)
-    if (isStorytime && this.storytimeEngine) {
+    // 2. Cloud AI render (json2video) — Shorts only (free plan caps at 60s),
+    //    quota-gated with graceful fallback to the local engines.
+    if (targetRenderer === 'json2video' && isShort && this.json2videoApiKey) {
       try {
-        this.logger.info('🚀 Launching 2D Cartoon Storytime Studio (Not Your Type / Lil Yash Animation Engine)...');
+        this.logger.info('🚀 Launching json2video cloud AI render...');
+        await this.renderJson2Video(script, audioPath, outputPath, { isShort });
+        return outputPath;
+      } catch (j2vErr) {
+        this.logger.warn(`json2video render unavailable (${j2vErr.message}). Falling back to the AI-cinematic engine...`);
+      }
+    }
+
+    // 3. AI Cinematic engine — procedural motion-graphics scenes (2.5D / 3D
+    //    parallax). Used for 'cinematic' + 'cinematic3d' targets and as the
+    //    fallback when the cloud renderer is unavailable.
+    if ((targetRenderer === 'cinematic' || targetRenderer === 'cinematic3d' || targetRenderer === 'json2video') && this.cinematicEngine) {
+      try {
+        this.logger.info('🚀 Launching AI Cinematic Studio (procedural motion-graphics engine)...');
+        return await this.cinematicEngine.renderCinematicVideo(script, audioPath, outputPath, { isShort });
+      } catch (cineErr) {
+        this.logger.warn(`AI-cinematic engine fallback (${cineErr.message}). Trying the 2D cartoon engine next...`);
+      }
+    }
+
+    // 4. 2D Cartoon Storytime Animation Engine (category-themed scenes +
+    //    one-line bottom captions)
+    const wantsStorytime = targetRenderer === 'storytime';
+    if (wantsStorytime && this.storytimeEngine) {
+      try {
+        this.logger.info('🚀 Launching 2D Cartoon Storytime Studio (themed animation engine)...');
         return await this.storytimeEngine.renderStorytimeVideo(script, audioPath, outputPath, { isShort });
       } catch (storyErr) {
         this.logger.warn(`Storytime animation engine fallback (${storyErr.message}). Using Pexels stock video assembler...`);
@@ -544,6 +591,200 @@ class AIVideoGenerator {
     } finally {
       await this.cleanupDirectory(tempDir).catch(() => {});
     }
+  }
+
+  // ────────────────────────────────────────────────────────────────────────
+  // json2video cloud renderer (best-model accent path)
+  //
+  // Verified against the live v2 API (probe: 8s render, AI images OK):
+  //   POST https://api.json2video.com/v2/movies  → { success, project }
+  //   GET  https://api.json2video.com/v2/movies?project=… → { movie: { status, url } }
+  //   element: { type: 'image', ai: true, prompt, duration }
+  // Free plan: 600 s/month quota, 60 s max per video → Shorts only, with a
+  // quota pre-check so we never silently burn credits or fail mid-run.
+  // Narration is muxed locally afterwards and one-line bottom captions are
+  // burned from the script's own chunks.
+  // ────────────────────────────────────────────────────────────────────────
+  async renderJson2Video(script, audioPath, outputPath, { isShort = false } = {}) {
+    if (!this.json2videoApiKey) {
+      throw new Error('JSON2VIDEO_API_KEY not configured');
+    }
+    const headers = { 'x-api-key': this.json2videoApiKey, 'Content-Type': 'application/json' };
+
+    // 1. Duration (cloud free plan hard-caps at 60s)
+    let duration = await this.videoAssembler.getDuration(audioPath);
+    if (!duration || duration < 5) {
+      duration = this.calculateScriptDuration(script) || 30;
+    }
+    duration = Math.min(duration, 58);
+
+    // 2. Quota pre-check (render seconds + safety buffer)
+    try {
+      const acct = await axios.get('https://api.json2video.com/v2/account', { headers, timeout: 20000 });
+      const remaining = acct.data?.remaining_quota?.time;
+      const need = Math.ceil(duration) + 40;
+      if (typeof remaining === 'number' && remaining < need) {
+        throw new Error(`json2video quota too low: ${remaining}s left, need ~${need}s`);
+      }
+      this.logger.info(`json2video quota check OK (${typeof remaining === 'number' ? remaining + 's' : 'unknown'} remaining, need ~${need}s)`);
+    } catch (qErr) {
+      if (qErr.message && qErr.message.startsWith('json2video quota')) throw qErr;
+      this.logger.warn(`json2video quota check failed (${qErr.message}) — proceeding cautiously`);
+    }
+
+    // 3. Build AI scenes from the script sections
+    const sections = (script?.mainContent?.sections || []).filter((s) => (Array.isArray(s.content) ? s.content.join(' ') : s.content || s.title));
+    const usable = sections.length > 0 ? sections : [
+      { title: script?.title || 'Today\'s Story', content: [script?.hook?.text || script?.hook || 'A story worth telling.'] }
+    ];
+    const sceneCount = Math.max(3, Math.min(8, usable.length));
+    const perScene = duration / sceneCount;
+    const categoryWords = this.json2videoSceneWords(script);
+
+    const scenes = [];
+    for (let i = 0; i < sceneCount; i++) {
+      const sec = usable[Math.min(i, usable.length - 1)];
+      const secText = Array.isArray(sec.content) ? sec.content.join(' ') : (sec.content || '');
+      const imagePrompt = `${sec.title || script?.title || 'cinematic scene'}, ${String(secText).slice(0, 120)}, ${categoryWords}, cinematic lighting, ultra detailed, photorealistic, no text, no watermark`;
+      scenes.push({
+        comment: `scene ${i + 1}`,
+        duration: Math.max(2, Math.round(perScene)),
+        elements: [
+          { type: 'image', ai: true, prompt: imagePrompt.slice(0, 400), duration: Math.max(2, Math.round(perScene)) },
+          { type: 'text', text: String(sec.title || script?.title || '').toUpperCase().slice(0, 42), duration: Math.max(2, Math.round(perScene)) }
+        ]
+      });
+    }
+
+    const project = {
+      resolution: 'custom',
+      width: isShort ? 720 : 1920,
+      height: isShort ? 1280 : 1080,
+      quality: 'high',
+      scenes
+    };
+
+    // 4. Submit render
+    const post = await axios.post('https://api.json2video.com/v2/movies', project, { headers, timeout: 30000 });
+    const projectId = post.data?.project;
+    if (!projectId) {
+      throw new Error(`json2video submit failed: ${JSON.stringify(post.data).slice(0, 200)}`);
+    }
+    this.logger.info(`json2video project submitted: ${projectId} (${sceneCount} scenes, ${duration.toFixed(0)}s)`);
+
+    // 5. Poll until done (renders take ~1-2 min per Short)
+    let movieUrl = null;
+    for (let i = 0; i < 48; i++) {
+      await new Promise((r) => setTimeout(r, 10000));
+      const stat = await axios.get(`https://api.json2video.com/v2/movies?project=${projectId}`, { headers, timeout: 30000 });
+      const movie = stat.data?.movie || stat.data || {};
+      if (movie.status === 'done' && movie.url) {
+        movieUrl = movie.url;
+        break;
+      }
+      if (movie.status === 'error' || movie.error) {
+        throw new Error(`json2video render error: ${JSON.stringify(movie.error || movie.message).slice(0, 300)}`);
+      }
+      if (i % 3 === 2) this.logger.info(`json2video still rendering (${(i + 1) * 10}s)...`);
+    }
+    if (!movieUrl) {
+      throw new Error('json2video render timed out after 8 minutes');
+    }
+
+    // 6. Download the rendered MP4
+    const tempDir = path.join(path.dirname(outputPath), `temp_j2v_${Date.now()}`);
+    await fs.mkdir(tempDir, { recursive: true });
+    const cloudVideoPath = path.join(tempDir, 'cloud_render.mp4');
+    const download = await axios.get(movieUrl, { responseType: 'arraybuffer', timeout: 180000 });
+    await fs.writeFile(cloudVideoPath, Buffer.from(download.data));
+    this.logger.info(`json2video render downloaded (${(await fs.stat(cloudVideoPath)).size} bytes)`);
+
+    try {
+      // 7. Burn one-line bottom captions from the narration chunks
+      const srtPath = path.join(tempDir, 'captions.srt');
+      await this.writeCaptionSrt(script, duration, srtPath);
+      const captionedPath = path.join(tempDir, 'captioned.mp4');
+      const srtFilter = srtPath.replace(/\\/g, '/').replace(/:/g, '\\:');
+      await runFFmpeg([
+        '-y',
+        '-i', cloudVideoPath,
+        '-vf', `subtitles=filename='${srtFilter}':force_style='FontSize=15,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=2,Shadow=1,Alignment=2,MarginV=24'`,
+        '-c:v', 'libx264',
+        '-preset', 'veryfast',
+        '-pix_fmt', 'yuv420p',
+        '-an',
+        captionedPath
+      ]);
+
+      // 8. Mux the narration
+      await this.videoAssembler.muxAudio(captionedPath, audioPath, outputPath);
+      this.logger.info(`🎉 json2video cloud AI video generated: ${outputPath}`);
+      return outputPath;
+    } finally {
+      await this.cleanupDirectory(tempDir).catch(() => {});
+    }
+  }
+
+  /** Per-category scene look words for json2video AI image prompts. */
+  json2videoSceneWords(script) {
+    const categoryId = script?.metadata?.strategy?.categoryId || script?.categoryId || '';
+    const map = {
+      space: 'deep space, nebulae, galaxies, planets, telescope views, cosmic dust',
+      'future-ai': 'futuristic technology, glowing neural networks, holographic interfaces, robotics',
+      'dark-psychology': 'moody noir atmosphere, silhouettes, mist, dramatic shadows, mind imagery',
+      'history-what-if': 'historical settings, ancient architecture, aged film look, dramatic skies',
+      survival: 'wilderness, extreme nature, dramatic landscapes, survival gear'
+    };
+    return map[categoryId] || 'cinematic, dramatic lighting, rich detail';
+  }
+
+  /**
+   * Build an SRT of short one-line captions from the script sections,
+   * time-sliced evenly across the narration duration (same chunking rules as
+   * the Remotion compositions).
+   */
+  async writeCaptionSrt(script, totalDurationSeconds, outputPath) {
+    const sections = script?.mainContent?.sections || [];
+    const usable = sections.length > 0 ? sections : [{ content: [script?.title || 'Subscribe for daily stories.'] }];
+    const perSection = totalDurationSeconds / usable.length;
+
+    const fmt = (s) => {
+      const ms = Math.max(0, Math.round(s * 1000));
+      const h = String(Math.floor(ms / 3600000)).padStart(2, '0');
+      const m = String(Math.floor((ms % 3600000) / 60000)).padStart(2, '0');
+      const sec = String(Math.floor((ms % 60000) / 1000)).padStart(2, '0');
+      const rest = String(ms % 1000).padStart(3, '0');
+      return `${h}:${m}:${sec},${rest}`;
+    };
+
+    let srt = '';
+    let index = 1;
+    usable.forEach((sec, si) => {
+      const text = Array.isArray(sec.content) ? sec.content.join(' ') : (sec.content || '');
+      const words = String(text).replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+      const chunks = [];
+      let cur = [];
+      for (const w of words) {
+        if (cur.length >= 7 || [...cur, w].join(' ').length > 46) {
+          chunks.push(cur.join(' '));
+          cur = [w];
+        } else {
+          cur.push(w);
+        }
+      }
+      if (cur.length > 0) chunks.push(cur.join(' '));
+      if (chunks.length === 0) return;
+
+      const chunkLen = perSection / chunks.length;
+      chunks.forEach((chunk, ci) => {
+        const start = si * perSection + ci * chunkLen;
+        const end = start + chunkLen - 0.05;
+        srt += `${index++}\n${fmt(start)} --> ${fmt(end)}\n${chunk}\n\n`;
+      });
+    });
+
+    await fs.writeFile(outputPath, srt, 'utf8');
+    return outputPath;
   }
 
   async generateReplicateVideo(script, visualAssets, audioPath, outputPath) {
@@ -986,11 +1227,20 @@ class AIVideoGenerator {
     }
   }
 
-  async generateThumbnail(script, style = "cartoon") {
-    this.logger.info('Generating custom 2D Cartoon Storytime thumbnail...');
+  async generateThumbnail(script, style = null) {
+    // Thumbnail art follows the video's visual style instead of a fixed look.
+    const visual = String(style || script?.visualStyle || script?.metadata?.strategy?.visualStyle || 'ai-cinematic').toLowerCase();
+    const stylePrompts = {
+      '2d-cartoon': `YouTube thumbnail for a 2D cartoon story "${script.title}", expressive cartoon character with shocked face, vibrant flat illustration background, bold outlines, comic style, high contrast clickbait`,
+      'ai-cinematic': `YouTube thumbnail for "${script.title}", dramatic AI cinematic key art, volumetric lighting, epic scene, glowing accents, ultra detailed, high contrast clickbait`,
+      'motion-3d': `YouTube thumbnail for "${script.title}", glossy 3D render key art, futuristic depth, neon rim lighting, floating glass shapes, ultra detailed, high contrast clickbait`,
+      realistic: `YouTube thumbnail for "${script.title}", photorealistic dramatic photography, cinematic color grade, sharp focus subject, high contrast clickbait`,
+      'json2video-motion': `YouTube thumbnail for "${script.title}", polished motion-graphics poster, dynamic gradients, bold shapes, high contrast clickbait`
+    };
+    const prompt = stylePrompts[visual] || stylePrompts['ai-cinematic'];
+    this.logger.info(`Generating custom thumbnail [${visual}]...`);
 
     try {
-      const prompt = `YouTube thumbnail for 2D cartoon storytime "${script.title}", funny anime character shock expression, vibrant cartoon background, comic style, high contrast clickbait, engaging 4k`;
       const thumbnailPath = path.join(__dirname, '..', 'uploads', 'thumbnails', `thumbnail_${Date.now()}.png`);
 
       await this.generateImage(prompt, thumbnailPath);

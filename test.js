@@ -25,6 +25,7 @@ class SystemTest {
       { name: 'Agnes Video Client', test: () => this.testAgnesVideoClient() },
       { name: 'No-Silent-Skip Verdict', test: () => this.testNoSilentSkipVerdict() },
       { name: 'QC Agent Publish Gate', test: () => this.testQCAgentPublishGate() },
+      { name: 'Visual Style Rotation', test: () => this.testVisualStyleRotation() },
       { name: 'Channel Maintenance Agent', test: () => this.testChannelMaintenanceAgent() },
       { name: 'FFmpeg Resolution', test: () => this.testFFmpegResolution() },
       { name: 'Gemini Media Provider Selection', test: () => this.testGeminiMediaProvider() },
@@ -446,6 +447,73 @@ class SystemTest {
       throw new Error('A batch with a real publish must be reported as success');
     }
     this.logger.info('No-silent-skip verdict logic verified');
+  }
+
+  // Visual variety guarantee: the daily batch must rotate renderers (cartoon /
+  // AI-cinematic / 3D / realistic / cloud), long-form must never receive a
+  // Shorts-only renderer, and script-writer threading must map renderer →
+  // script fields that the video generator routes on.
+  async testVisualStyleRotation() {
+    const { VISUAL_STYLES, pickVisualStyle } = require('./agents/video-quality-control-agent');
+    const { buildCaptionChunks, activeCaptionChunk } = require('./remotion/caption-utils');
+
+    if (!Array.isArray(VISUAL_STYLES) || VISUAL_STYLES.length < 4) {
+      throw new Error('visual style rotation must offer at least 4 distinct looks');
+    }
+    const renderers = new Set(VISUAL_STYLES.map((s) => s.renderer));
+    if (!renderers.has('storytime') || !renderers.has('cinematic') || !renderers.has('stock')) {
+      throw new Error('visual rotation must include cartoon, cinematic and realistic renderers');
+    }
+
+    // Consecutive slots within a run get different renderers.
+    const picked = [0, 1, 2, 3].map((i) => pickVisualStyle(100 + i, true).id);
+    if (new Set(picked).size < 3) {
+      throw new Error(`consecutive slots must vary visually, got: ${picked.join(', ')}`);
+    }
+
+    // Long-form never receives a Shorts-only renderer (json2video ≤ 60s cap).
+    for (let i = 0; i < 12; i++) {
+      const long = pickVisualStyle(i, false);
+      if (long.shortsOnly) {
+        throw new Error(`long-form slot ${i} received Shorts-only renderer ${long.id}`);
+      }
+    }
+
+    // Caption chunking: narration must split into short one-line chunks and
+    // the active chunk must advance with scene time.
+    const chunks = buildCaptionChunks('For decades we believed the first galaxies formed late. That picture changed overnight when James Webb looked closer than ever before.');
+    if (chunks.length < 3) {
+      throw new Error('caption chunking produced too few one-line chunks');
+    }
+    if (chunks.some((c) => c.length > 60)) {
+      throw new Error('caption chunk exceeded one-line length budget');
+    }
+    const first = activeCaptionChunk(chunks, 0, 300);
+    const last = activeCaptionChunk(chunks, 299, 300);
+    if (first === last && chunks.length > 1) {
+      throw new Error('caption chunks must time-slice across the scene');
+    }
+
+    // Script-writer threading: renderer must land in the script fields the
+    // generator routes on.
+    const { ScriptWriterAgent } = require('./agents/script-writer-agent');
+    const writer = new ScriptWriterAgent({}, {});
+    const { visualFields } = require('./agents/script-writer-agent');
+    if (typeof visualFields !== 'function') {
+      throw new Error('script-writer must export visualFields for style threading');
+    }
+    const cinematic = visualFields({ visualRenderer: 'cinematic' });
+    if (cinematic.videoStyle !== 'ai-cinematic' || cinematic.style !== 'cinematic') {
+      throw new Error('cinematic renderer must map to ai-cinematic script fields');
+    }
+    const legacy = visualFields({});
+    if (legacy.videoStyle !== 'storytime') {
+      throw new Error('scripts without a renderer must keep the storytime default');
+    }
+    if (typeof writer.generateScript !== 'function') {
+      throw new Error('script-writer agent broken while threading visual styles');
+    }
+    this.logger.info('Visual style rotation + one-line caption chunking verified');
   }
 
   // The QC agent must hard-reject missing/corrupt mp4 files (technical probe

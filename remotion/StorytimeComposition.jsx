@@ -85,13 +85,14 @@ export const StorytimeComposition = ({
           <SpeedLines width={width} height={height} opacity={0.8} />
         )}
 
-        {/* 4. 2D Character Mascot Sprite */}
+        {/* 4. 2D Character Mascot Sprite (smaller so the scene stays visible) */}
         <CharacterSprite
           pose={currentScene.pose || 'neutral_talk'}
           speaker={currentScene.speaker || 'hero'}
           isSpeaking={true}
           position={currentScene.speaker === 'teacher' ? 'right' : 'center'}
           customImage={currentScene.characterImage}
+          width={isShort ? 480 : 560}
         />
       </div>
 
@@ -107,8 +108,14 @@ export const StorytimeComposition = ({
         />
       )}
 
-      {/* 6. Kinetic Karaoke Subtitles (Overlay on Top) */}
-      <KineticSubtitles text={currentScene.text} isShort={isShort} />
+      {/* 6. One-line bottom captions (chunked from scene narration) */}
+      <KineticSubtitles
+        text={currentScene.text}
+        frameInScene={frame - currentScene.startFrame}
+        sceneDurationInFrames={currentScene.durationInFrames}
+        isShort={isShort}
+        accent={currentScene.accent || '#38bdf8'}
+      />
     </AbsoluteFill>
   );
 };

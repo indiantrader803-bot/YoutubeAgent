@@ -15,6 +15,29 @@ const STYLE_ROTATION = [
   { id: 'list-shock', instruction: 'Rapid-fire list style: countdown of shocking facts, escalating surprises, strongest fact last.' }
 ];
 
+// Visual style rotation — controls WHICH renderer + art direction each video
+// gets, so the channel publishes cartoon, cinematic-AI, 3D motion and
+// realistic-footage looks in rotation instead of one fixed template.
+// renderer values map to AIVideoGenerator.generateVideo() routing:
+//   storytime  → Remotion 2D cartoon engine (category-themed scenes)
+//   cinematic  → Remotion AI-cinematic procedural engine
+//   cinematic3d→ Remotion AI-cinematic engine with full 3D parallax depth
+//   stock      → Pexels real-footage + FFmpeg documentary chain
+//   json2video → cloud AI render (Shorts only, quota-gated, graceful fallback)
+const VISUAL_STYLES = [
+  { id: 'ai-cinematic', label: 'AI Cinematic Motion', renderer: 'cinematic', legacyStyle: 'cinematic' },
+  { id: 'realistic', label: 'Realistic Footage', renderer: 'stock', legacyStyle: 'realistic' },
+  { id: '2d-cartoon', label: '2D Cartoon Story', renderer: 'storytime', legacyStyle: 'cartoon' },
+  { id: 'motion-3d', label: '3D Motion Graphics', renderer: 'cinematic3d', legacyStyle: '3d' },
+  { id: 'json2video-motion', label: 'Cloud AI Motion', renderer: 'json2video', legacyStyle: 'cinematic', shortsOnly: true }
+];
+
+/** Pick a visual style for a video slot; long-form never gets Shorts-only styles. */
+function pickVisualStyle(slotIndex, isShort) {
+  const pool = VISUAL_STYLES.filter((s) => !s.shortsOnly || isShort);
+  return pool[((slotIndex % pool.length) + pool.length) % pool.length];
+}
+
 class VideoQualityControlAgent {
   constructor(db, credentials) {
     this.db = db;
@@ -245,4 +268,4 @@ function fspStat(p) {
   return require('fs').promises.stat(p);
 }
 
-module.exports = { VideoQualityControlAgent, STYLE_ROTATION, QC_MIN_SCORE: MIN_SCORE };
+module.exports = { VideoQualityControlAgent, STYLE_ROTATION, VISUAL_STYLES, pickVisualStyle, QC_MIN_SCORE: MIN_SCORE };

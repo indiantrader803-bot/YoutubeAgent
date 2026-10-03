@@ -1,6 +1,24 @@
 const { Logger } = require('../utils/logger');
 const { AITextService } = require('../utils/ai-text-service');
 
+// Visual style threading: the daily batch assigns strategy.visualRenderer
+// (rotating cartoon / AI-cinematic / 3D / realistic / cloud-AI looks) and the
+// script carries it so the video generator routes to the matching renderer.
+// Scripts produced outside the batch loop (no renderer set) keep the classic
+// storytime look for backward compatibility.
+const RENDERER_STYLE_MAP = {
+  storytime: { videoStyle: 'storytime', style: 'cartoon' },
+  cinematic: { videoStyle: 'ai-cinematic', style: 'cinematic' },
+  cinematic3d: { videoStyle: 'motion-3d', style: '3d' },
+  stock: { videoStyle: 'realistic', style: 'realistic' },
+  json2video: { videoStyle: 'json2video-motion', style: 'cinematic' }
+};
+
+function visualFields(strategy) {
+  const renderer = strategy?.visualRenderer;
+  return (renderer && RENDERER_STYLE_MAP[renderer]) || RENDERER_STYLE_MAP.storytime;
+}
+
 // Both rates are measured from real renders (ffmpeg-measured narration audio),
 // not guessed. A short script is dominated by the TTS provider's fixed
 // per-segment silence, so it produces far fewer words per second of audio than
@@ -193,14 +211,14 @@ class ScriptWriterAgent {
         duration: this.estimateDuration(mainContent),
         tone: template.tone,
         pacing: template.pacing,
-        videoStyle: 'storytime',
-        style: 'cartoon',
+        videoStyle: visualFields(strategy).videoStyle,
+        style: visualFields(strategy).style,
         keywords: strategy.keywords,
         metadata: {
           strategy: strategy,
           generatedAt: new Date().toISOString(),
           version: '2.0',
-          videoStyle: 'storytime'
+          videoStyle: visualFields(strategy).videoStyle
         }
       };
 
@@ -310,9 +328,9 @@ Avoid fabricated statistics, unsupported claims, and fake urgency.`;
         duration: this.estimateDuration({ sections }),
         tone: template.tone,
         pacing: template.pacing,
-        videoStyle: 'storytime',
+        videoStyle: visualFields(strategy).videoStyle,
         narrationStyle: strategy.styleId || 'storytime',
-        style: 'cartoon',
+        style: visualFields(strategy).style,
         keywords: strategy.keywords || [],
         metadata: {
           strategy,
@@ -1216,4 +1234,4 @@ Avoid fabricated statistics, unsupported claims, and fake urgency.`;
   }
 }
 
-module.exports = { ScriptWriterAgent };
+module.exports = { ScriptWriterAgent, visualFields, RENDERER_STYLE_MAP };

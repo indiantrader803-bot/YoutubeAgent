@@ -6,7 +6,8 @@ export const CharacterSprite = ({
   speaker = 'hero',
   isSpeaking = true,
   position = 'center', // 'left', 'center', 'right'
-  customImage = null
+  customImage = null,
+  width = 720
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
@@ -43,7 +44,7 @@ export const CharacterSprite = ({
         src={spriteSrc}
         alt={pose}
         style={{
-          width: '720px',
+          width: `${width}px`,
           height: 'auto',
           display: 'block',
           userSelect: 'none'

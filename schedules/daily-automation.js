@@ -5,7 +5,7 @@ const { spawn } = require('child_process');
 const { Logger } = require('../utils/logger');
 const { loadContentMatrix, getRunIndex, buildDailyBatch, computeBestPublishTime } = require('../config/content-matrix');
 const { EmailNotifier } = require('../utils/email-notifier');
-const { STYLE_ROTATION } = require('../agents/video-quality-control-agent');
+const { STYLE_ROTATION, pickVisualStyle } = require('../agents/video-quality-control-agent');
 
 // Vendored Agnes Video Generator (free AI text-to-video renderer, MIT).
 // One free key from https://platform.agnes-ai.com enables it as a real-render
@@ -182,7 +182,13 @@ class DailyAutomation {
         const style = STYLE_ROTATION[(getRunIndex() * dailyBatch.length + i) % STYLE_ROTATION.length];
         strategy.styleId = style.id;
         strategy.styleInstruction = style.instruction;
-        this.logger.info(`[Video ${i + 1}] Strategy topic: ${strategy.topic} [${item.language.name}] [style: ${style.id}]`);
+        // Visual variety: rotate the RENDERER + art direction per video (AI
+        // cinematic / realistic footage / 2D cartoon / 3D motion / cloud AI)
+        // so every upload looks like a different creator made it.
+        const vstyle = pickVisualStyle(getRunIndex() * dailyBatch.length + i, isShort);
+        strategy.visualStyle = vstyle.id;
+        strategy.visualRenderer = vstyle.renderer;
+        this.logger.info(`[Video ${i + 1}] Strategy topic: ${strategy.topic} [${item.language.name}] [style: ${style.id}] [visual: ${vstyle.id}]`);
 
         // Generate script
         const script = await this.agents.scriptWriter.generateScript(strategy);

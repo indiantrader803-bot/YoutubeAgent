@@ -1,6 +1,7 @@
 import React from 'react';
 import { Composition } from 'remotion';
 import { StorytimeComposition } from './StorytimeComposition';
+import { AICinematicComposition } from './AICinematicComposition';
 import { TradingComposition } from './TradingComposition';
 
 export const RemotionRoot = () => {
@@ -9,6 +10,18 @@ export const RemotionRoot = () => {
       <Composition
         id="StorytimeVideo"
         component={StorytimeComposition}
+        durationInFrames={300}
+        fps={30}
+        width={1920}
+        height={1080}
+        defaultProps={{
+          scenes: [],
+          isShort: false
+        }}
+      />
+      <Composition
+        id="AICinematicVideo"
+        component={AICinematicComposition}
         durationInFrames={300}
         fps={30}
         width={1920}

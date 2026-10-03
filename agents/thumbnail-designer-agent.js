@@ -104,6 +104,8 @@ class ThumbnailDesignerAgent {
     return {
       title: this.formatThumbnailTitle(script.title),
       style: baseConcept.style,
+      categoryId: script.metadata?.strategy?.categoryId || 'default',
+      visualStyle: script.visualStyle || script.metadata?.strategy?.visualStyle || 'ai-cinematic',
       primaryText: this.extractPrimaryText(script.title),
       secondaryText: this.generateSecondaryText(script),
       elements: baseConcept.elements,
@@ -267,15 +269,25 @@ class ThumbnailDesignerAgent {
       return outputPath;
     }
 
-    // Pro 2D Cartoon Storytime Thumbnail with Character Sprite
-    const bgPath = path.join(__dirname, '..', 'assets', 'backgrounds', 'classroom.png');
-    const heroPath = path.join(__dirname, '..', 'assets', 'characters', 'hero_shocked.png');
+    // Category-themed cinematic thumbnail — the background matches the
+    // video's topic (space ≠ classroom) and the visual style.
+    const theme = this.categoryThumbTheme(concept.categoryId, concept.visualStyle);
 
     try {
-      const bgBuffer = await sharp(bgPath).resize(width, height, { fit: 'cover' }).toBuffer();
-      const heroBuffer = await sharp(heroPath).resize(540, 540, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } }).toBuffer();
+      const bgBuffer = await sharp(Buffer.from(theme.svg(width, height))).png().toBuffer();
 
-      const titleClean = String(concept.primaryText || 'SURPRISE TEST').toUpperCase().slice(0, 20);
+      const isCartoon = String(concept.visualStyle || '').includes('cartoon');
+      let heroBuffer = null;
+      if (isCartoon) {
+        try {
+          const heroPath = path.join(__dirname, '..', 'assets', 'characters', 'hero_shocked.png');
+          heroBuffer = await sharp(heroPath).resize(540, 540, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } }).toBuffer();
+        } catch (e) {
+          heroBuffer = null;
+        }
+      }
+
+      const titleClean = String(concept.primaryText || concept.title || 'MUST WATCH').toUpperCase().slice(0, 20);
       const subClean = String(concept.secondaryText || 'MUST WATCH').toUpperCase().slice(0, 24);
 
       const titleSvg = Buffer.from(`
@@ -290,25 +302,27 @@ class ThumbnailDesignerAgent {
             </linearGradient>
           </defs>
 
-          <!-- Top Badge -->
-          <rect x="50" y="60" width="380" height="65" rx="15" fill="#E11D48" filter="url(#shadow)"/>
-          <text x="240" y="105" font-family="Impact, Arial Black, sans-serif" font-size="36" font-weight="900" fill="#FFFFFF" text-anchor="middle">🔥 100% RELATABLE</text>
+          <!-- Top Badge (topic-specific) -->
+          <rect x="50" y="60" width="430" height="65" rx="15" fill="${theme.badgeColor}" filter="url(#shadow)"/>
+          <text x="265" y="105" font-family="Impact, Arial Black, sans-serif" font-size="34" font-weight="900" fill="#FFFFFF" text-anchor="middle">${theme.badge}</text>
 
           <!-- Main Catchy Title -->
           <text x="60" y="260" font-family="Impact, Arial Black, sans-serif" font-size="92" font-weight="900" fill="url(#yellowGrad)" stroke="#000000" stroke-width="12" paint-order="stroke fill" filter="url(#shadow)">${titleClean}!</text>
-          <text x="60" y="370" font-family="Impact, Arial Black, sans-serif" font-size="78" font-weight="900" fill="#FFFFFF" stroke="#000000" stroke-width="10" paint-order="stroke fill" filter="url(#shadow)">${subClean} 😂</text>
+          <text x="60" y="370" font-family="Impact, Arial Black, sans-serif" font-size="74" font-weight="900" fill="#FFFFFF" stroke="#000000" stroke-width="10" paint-order="stroke fill" filter="url(#shadow)">${subClean}</text>
           
-          <!-- Bottom Punchline Hook -->
-          <rect x="50" y="460" width="460" height="80" rx="20" fill="#FACC15" stroke="#000000" stroke-width="6" filter="url(#shadow)"/>
-          <text x="280" y="518" font-family="Impact, Arial Black, sans-serif" font-size="40" font-weight="900" fill="#000000" text-anchor="middle">BACKBENCHER HACK 😱</text>
+          <!-- Bottom Punchline Hook (topic-specific) -->
+          <rect x="50" y="460" width="500" height="80" rx="20" fill="${theme.punchBg}" stroke="#000000" stroke-width="6" filter="url(#shadow)"/>
+          <text x="300" y="518" font-family="Impact, Arial Black, sans-serif" font-size="38" font-weight="900" fill="#FFFFFF" text-anchor="middle">${theme.punchline}</text>
         </svg>
       `);
 
+      const composites = [
+        ...(heroBuffer ? [{ input: heroBuffer, top: 120, left: 720 }] : []),
+        { input: titleSvg, top: 0, left: 0 }
+      ];
+
       await sharp(bgBuffer)
-        .composite([
-          { input: heroBuffer, top: 120, left: 720 },
-          { input: titleSvg, top: 0, left: 0 }
-        ])
+        .composite(composites)
         .png()
         .toFile(outputPath);
 
@@ -324,6 +338,100 @@ class ThumbnailDesignerAgent {
       await sharp(Buffer.from(fallbackSvg)).png().toFile(outputPath);
       return outputPath;
     }
+  }
+
+  /**
+   * Category-themed thumbnail art: gradient scene + topic-specific badge and
+   * punchline text, so a space video never ships with school-hall art again.
+   */
+  categoryThumbTheme(categoryId, _visualStyle) {
+    const themes = {
+      space: {
+        badge: '🌌 SPACE MYSTERY', badgeColor: '#4C1D95',
+        punchline: 'THE UNIVERSE IS BIGGER', punchBg: '#1E1B4B',
+        scene: (w, h) => {
+          let stars = '';
+          for (let i = 0; i < 110; i++) {
+            const x = ((Math.sin(i * 127.1) * 43758.5453) % 1 + 1) % 1 * w;
+            const y = ((Math.sin(i * 311.7) * 12543.21) % 1 + 1) % 1 * h;
+            const r = 1 + (((Math.sin(i * 74.7) * 9631.13) % 1 + 1) % 1) * 3;
+            stars += `<circle cx="${x.toFixed(0)}" cy="${y.toFixed(0)}" r="${r.toFixed(1)}" fill="#fff" opacity="0.8"/>`;
+          }
+          return `
+            <defs><radialGradient id="g" cx="30%" cy="25%"><stop offset="0%" stop-color="#312e81"/><stop offset="60%" stop-color="#1e1b4b"/><stop offset="100%" stop-color="#020617"/></radialGradient></defs>
+            <rect width="${w}" height="${h}" fill="url(#g)"/>
+            <ellipse cx="${w * 0.62}" cy="${h * 0.72}" rx="${w * 0.42}" ry="${h * 0.2}" fill="#8b5cf6" opacity="0.22"/>
+            <circle cx="${w * 0.72}" cy="${h * 0.34}" r="${h * 0.16}" fill="#7c3aed" opacity="0.85"/>
+            <ellipse cx="${w * 0.72}" cy="${h * 0.34}" rx="${h * 0.24}" ry="${h * 0.06}" fill="none" stroke="#c4b5fd" stroke-width="10" opacity="0.8" transform="rotate(-18 ${w * 0.72} ${h * 0.34})"/>
+            ${stars}`;
+        }
+      },
+      'future-ai': {
+        badge: '🤖 AI REVEALS', badgeColor: '#0E7490',
+        punchline: 'THE FUTURE IS HERE', punchBg: '#082F49',
+        scene: (w, h) => {
+          let grid = '';
+          const horizon = h * 0.62;
+          for (let i = 1; i <= 8; i++) {
+            const y = horizon + Math.pow(i / 8, 2.1) * (h - horizon);
+            grid += `<line x1="0" y1="${y.toFixed(0)}" x2="${w}" y2="${y.toFixed(0)}" stroke="#22d3ee" stroke-width="2" opacity="0.35"/>`;
+          }
+          for (let i = -6; i <= 6; i++) {
+            grid += `<line x1="${w / 2 + i * w * 0.03}" y1="${horizon}" x2="${w / 2 + i * w * 0.2}" y2="${h}" stroke="#22d3ee" stroke-width="2" opacity="0.3"/>`;
+          }
+          return `
+            <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#082f49"/><stop offset="100%" stop-color="#020617"/></linearGradient></defs>
+            <rect width="${w}" height="${h}" fill="url(#g)"/>
+            <circle cx="${w * 0.5}" cy="${h * 0.3}" r="${h * 0.14}" fill="none" stroke="#22d3ee" stroke-width="8" opacity="0.9"/>
+            <circle cx="${w * 0.5}" cy="${h * 0.3}" r="${h * 0.08}" fill="#22d3ee" opacity="0.35"/>
+            <rect x="0" y="${horizon - 3}" width="${w}" height="6" fill="#22d3ee" opacity="0.8"/>
+            ${grid}`;
+        }
+      },
+      'dark-psychology': {
+        badge: '🧠 PSYCHOLOGY FACT', badgeColor: '#86198F',
+        punchline: 'YOUR BRAIN LIES TO YOU', punchBg: '#4C1D95',
+        scene: (w, h) => `
+          <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#312e81"/><stop offset="55%" stop-color="#701a75"/><stop offset="100%" stop-color="#111827"/></linearGradient></defs>
+          <rect width="${w}" height="${h}" fill="url(#g)"/>
+          <circle cx="${w * 0.68}" cy="${h * 0.36}" r="${h * 0.17}" fill="#e879f9" opacity="0.3"/>
+          <circle cx="${w * 0.68}" cy="${h * 0.36}" r="${h * 0.12}" fill="#e879f9" opacity="0.35"/>
+          <circle cx="${w * 0.68}" cy="${h * 0.36}" r="${h * 0.07}" fill="#f0abfc" opacity="0.6"/>`,
+      },
+      'history-what-if': {
+        badge: '⏳ WHAT IF…', badgeColor: '#B45309',
+        punchline: 'HISTORY REWRITTEN', punchBg: '#78350F',
+        scene: (w, h) => `
+          <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#b45309"/><stop offset="100%" stop-color="#1c1917"/></linearGradient></defs>
+          <rect width="${w}" height="${h}" fill="url(#g)"/>
+          <circle cx="${w * 0.7}" cy="${h * 0.28}" r="${h * 0.12}" fill="#fde68a" opacity="0.9"/>
+          <path d="M0 ${h * 0.72} Q ${w * 0.3} ${h * 0.56} ${w * 0.62} ${h * 0.74} T ${w} ${h * 0.7} V ${h} H 0 Z" fill="#451a03" opacity="0.9"/>
+          <rect x="${w * 0.16}" y="${h * 0.42}" width="${w * 0.1}" height="${h * 0.34}" fill="#292524" opacity="0.9"/>
+          <rect x="${w * 0.3}" y="${h * 0.5}" width="${w * 0.08}" height="${h * 0.26}" fill="#292524" opacity="0.85"/>`,
+      },
+      survival: {
+        badge: '🧭 SURVIVAL MODE', badgeColor: '#065F46',
+        punchline: 'WOULD YOU SURVIVE?', punchBg: '#022C22',
+        scene: (w, h) => `
+          <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#065f46"/><stop offset="100%" stop-color="#022c22"/></linearGradient></defs>
+          <rect width="${w}" height="${h}" fill="url(#g)"/>
+          <polygon points="0,${h} ${w * 0.18},${h * 0.42} ${w * 0.36},${h}" fill="#064e3b" opacity="0.9"/>
+          <polygon points="${w * 0.22},${h} ${w * 0.5},${h * 0.3} ${w * 0.82},${h}" fill="#065f46" opacity="0.85"/>
+          <polygon points="${w * 0.6},${h} ${w * 0.84},${h * 0.4} ${w},${h}" fill="#022c22"/>
+          <circle cx="${w * 0.3}" cy="${h * 0.2}" r="${h * 0.09}" fill="#fde68a" opacity="0.8"/>`,
+      },
+      default: {
+        badge: '🔥 MUST WATCH', badgeColor: '#DC2626',
+        punchline: 'WATCH TILL THE END', punchBg: '#7F1D1D',
+        scene: (w, h) => `
+          <defs><radialGradient id="g" cx="35%" cy="30%"><stop offset="0%" stop-color="#3730a3"/><stop offset="100%" stop-color="#020617"/></radialGradient></defs>
+          <rect width="${w}" height="${h}" fill="url(#g)"/>
+          <circle cx="${w * 0.7}" cy="${h * 0.4}" r="${h * 0.16}" fill="#818cf8" opacity="0.3"/>
+          <circle cx="${w * 0.7}" cy="${h * 0.4}" r="${h * 0.1}" fill="#38bdf8" opacity="0.4"/>`
+      }
+    };
+    const theme = themes[categoryId] || themes.default;
+    return { ...theme, svg: theme.scene };
   }
 
   hexToRgb(color) {
