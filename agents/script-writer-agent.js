@@ -421,13 +421,25 @@ Avoid fabricated statistics, unsupported claims, and fake urgency.`;
       nextVideo: 'Watch the next related video for more context.',
       duration: '15 seconds'
     };
-  }
-  async generateTitle(strategy) {
+  }  async generateTitle(strategy) {
+    // Kids/family-friendly titles use a gentle, show-style pattern so the
+    // series feels warm and intentional, not mass-produced clickbait.
+    if (strategy.contentType === 'tomful-study-family') {
+      const seriesName = 'Milo'
+      const gentleTitles = [
+        `${seriesName}'s ${strategy.topic}`,
+        `${seriesName} Discovers ${strategy.topic}`,
+        `${seriesName} Learns About ${strategy.topic}`,
+        `${seriesName} and ${strategy.topic}`,
+        `${seriesName}'s ${strategy.topic} Adventure`
+      ];
+      return gentleTitles[Math.floor(Math.random() * gentleTitles.length)].toString();
+    }
     const templates = [
       `${strategy.angle}`,
       `${strategy.topic}: The Complete Guide`,
       `Everything You Need to Know About ${strategy.topic}`,
-      `${strategy.topic} in ${new Date().getFullYear()}: What's Changed?`,
+      `${strategy.topic} in ${new Date().getFullYear()}: What'sChanged?`,
       `The Truth About ${strategy.topic} (Shocking Results)`,
       `How to Master ${strategy.topic} in 30 Days`,
       `${strategy.topic}: Beginner to Expert Guide`
@@ -478,7 +490,16 @@ Avoid fabricated statistics, unsupported claims, and fake urgency.`;
     };
   }
 
-  generateQuestionAbout(topic) {
+  generateQuestionAbout(topic, strategy) {
+    if (strategy && strategy.contentType === 'tomful-study-family') {
+      const kidsQuestions = [
+        `how ${topic.toLowerCase()} works`,
+        `why ${topic.toLowerCase()} is cool`,
+        `what happens when ${topic.toLowerCase()} changes`,
+        `how ${topic.toLowerCase()} can help you learn`
+      ];
+      return kidsQuestions[Math.floor(Math.random() * kidsQuestions.length)];
+    }
     const questions = [
       `why ${topic} is becoming so important`,
       `how ${topic} actually works`,
@@ -490,7 +511,16 @@ Avoid fabricated statistics, unsupported claims, and fake urgency.`;
     return questions[Math.floor(Math.random() * questions.length)];
   }
 
-  generateStatistic(topic) {
+  generateStatistic(topic, strategy) {
+    if (strategy && strategy.contentType === 'tomful-study-family') {
+      const kidStats = [
+        `${topic.toLowerCase()} can be a fun way to learn something new`,
+        `${topic.toLowerCase()} shows up in everyday life`,
+        `learning about ${topic.toLowerCase()} helps kids grow`,
+        `${topic.toLowerCase()} can be as simple as counting or sorting`
+      ];
+      return kidStats[Math.floor(Math.random() * kidStats.length)];
+    }
     const stats = [
       `many people are still figuring out how ${topic} works`,
       `the conversation around ${topic} keeps expanding`,
@@ -503,6 +533,15 @@ Avoid fabricated statistics, unsupported claims, and fake urgency.`;
   }
 
   async generateIntroduction(strategy) {
+    if (strategy.contentType === 'tomful-study-family') {
+      return {
+        greeting: 'Hi friends, welcome back to the channel!',
+        topicIntro: `Today we are going to learn about ${strategy.topic}.`,
+        valueProposition: `By the end of this little story, you will know one new thing about ${strategy.topic}.`,
+        credibility: 'We made this just for you to learn and smile.',
+        duration: '0:05-0:20'
+      };
+    }
     return {
       greeting: "Hey everyone, welcome back to the channel!",
       topicIntro: `Today, we're diving deep into ${strategy.topic}.`,
@@ -513,6 +552,10 @@ Avoid fabricated statistics, unsupported claims, and fake urgency.`;
   }
 
   getValueProposition(strategy) {
+    // Kids/family-friendly series keep the proposition warm and simple.
+    if (strategy.contentType === 'tomful-study-family') {
+      return `how ${strategy.topic.toLowerCase()} can help you learn one simple thing today`;
+    }
     const propositions = {
       'Tutorial': `how to implement ${strategy.topic} step by step`,
       'Explainer': `what ${strategy.topic} is and why it matters`,

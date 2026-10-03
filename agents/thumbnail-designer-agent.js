@@ -136,7 +136,13 @@ class ThumbnailDesignerAgent {
       }
     };
 
-    const baseConcept = concepts[script.metadata?.strategy?.contentType?.toLowerCase()] || concepts.explainer;
+    // Family-friendly kids content gets a warm, soft, playful concept so the
+    // channel can distinguish "Milo's Little Adventures" art from the main
+    // viral channel's sharper thumbnails.
+    const contentType = script.metadata?.strategy?.contentType?.toLowerCase() || 'explainer';
+    const isKids = contentType === 'tomful-study-family' || script.metadata?.isKids;
+    const localConcepts = isKids ? this.kidsConcepts : concepts;
+    const baseConcept = localConcepts[contentType] || (isKids ? this.kidsConcepts.story : concepts.explainer);
     
     return {
       title: this.formatThumbnailTitle(script.title),
@@ -153,6 +159,7 @@ class ThumbnailDesignerAgent {
       },
       emotion: baseConcept.emotion,
       composition: this.selectComposition(),
+      isKids,
       effects: this.selectEffects()
     };
   }
@@ -202,6 +209,51 @@ class ThumbnailDesignerAgent {
     
     return 'MUST WATCH';
   }
+
+  // Soft, rounded, warm-colored composition for kids thumbnails.
+  kidsConcepts = {
+    story: {
+      style: 'playful',
+      elements: ['smiling character', 'gentle motion', 'simple animals or objects'],
+      colors: ['soft green', 'warm yellow', 'soft blue'],
+      emotion: 'happy'
+    },
+    explainer: {
+      style: 'gentle',
+      elements: ['big friendly numbers', 'shapes', 'simple icons'],
+      colors: ['soft green', 'warm yellow', 'soft blue'],
+      emotion: 'calm'
+    }
+  };
+
+  // Warm, rounded manga-style text block (title logo look) for kids thumbnails.
+  kidsTitleSvg = (width, height, titleClean, subClean) => {
+    return Buffer.from(`
+      <svg width="${width}" height="${height}">
+        <defs>
+          <radialGradient id="yg" cx="50%" cy="40%">
+            <stop offset="0%" stop-color="#FFF8E1"/>
+            <stop offset="100%" stop-color="#FFD54F"/>
+          </radialGradient>
+          <filter id="kb" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="4" dy="8" stdDeviation="6" flood-color="#000000" flood-opacity="0.85"/>
+          </filter>
+        </defs>
+
+        <!-- Soft badge -->
+        <rect x="50" y="60" width="320" height="62" rx="22" fill="#81C784" filter="url(#kb)"/>
+        <text x="210" y="101" font-family="Impact, Arial Black, sans-serif" font-size="32" font-weight="900" fill="#FFFFFF" text-anchor="middle">🌿 FRIENDLY VIBES</text>
+
+        <!-- Big friendly title -->
+        <text x="60" y="250" font-family="Impact, Arial Black, sans-serif" font-size="90" font-weight="900" fill="url(#yg)" stroke="#1B5E20" stroke-width="10" paint-order="stroke fill" filter="url(#kb)">${titleClean}!</text>
+        <text x="60" y="350" font-family="Impact, Arial Black, sans-serif" font-size="72" font-weight="900" fill="#FFFFFF" stroke="#1B5E20" stroke-width="9" paint-order="stroke fill" filter="url(#kb)">${subClean} 😊</text>
+
+        <!-- Soft punchline -->
+        <rect x="50" y="460" width="470" height="70" rx="22" fill="#FFE082" stroke="#1B5E20" stroke-width="7" filter="url(#kb)"/>
+        <text x="285" y="510" font-family="Impact, Arial Black, sans-serif" font-size="34" font-weight="900" fill="#33691E" text-anchor="middle">LEARN & SMILE 😊</text>
+      </svg>
+    `);
+  };
 
   selectComposition() {
     const compositions = [
@@ -331,7 +383,12 @@ class ThumbnailDesignerAgent {
       const badgeText = escapeXml(theme.badge);
       const punchText = escapeXml(theme.punchline);
 
-      const titleSvg = Buffer.from(`
+      // Kids/family thumbnails use a softer, rounded concept so the series
+      // art feels warm and intentionally different from the main channel.
+      const isKids = concept?.isKids || (concept.script && concept.script.metadata?.isKids) || (concept.strategy && concept.strategy.isKids);
+      const titleSvg = isKids
+        ? this.kidsTitleSvg(width, height, titleClean, subClean)
+        : Buffer.from(`
         <svg width="${width}" height="${height}">
           <defs>
             <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
@@ -358,7 +415,7 @@ class ThumbnailDesignerAgent {
       `);
 
       const composites = [
-        ...(heroBuffer ? [{ input: heroBuffer, top: 120, left: 720 }] : []),
+        ...(isKids ? [] : (heroBuffer ? [{ input: heroBuffer, top: 120, left: 720 }] : [])),
         { input: titleSvg, top: 0, left: 0 }
       ];
 

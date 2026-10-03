@@ -14,6 +14,7 @@ const { DedicatedYouTubeAutomationMonitorAgent } = require('../agents/youtube-au
 const { YouTubeStudioAnalyticsMonitorAgent } = require('../agents/youtube-studio-analytics-monitor-agent');
 const { VideoQualityControlAgent } = require('../agents/video-quality-control-agent');
 const { ChannelMaintenanceAgent } = require('../agents/channel-maintenance-agent');
+const { ChannelMonetizationAgent } = require('../agents/channel-monetization-agent');
 const { DailyAutomation } = require('../schedules/daily-automation');
 const { getRunIndex } = require('../config/content-matrix');
 const { Logger } = require('../utils/logger');
@@ -45,7 +46,8 @@ async function runStandaloneAutomation() {
     youtubeOverseer: new DedicatedYouTubeAutomationMonitorAgent(db, credentialManager),
     studioMonitor: new YouTubeStudioAnalyticsMonitorAgent(db, credentialManager),
     qualityControl: new VideoQualityControlAgent(db, credentialManager),
-    channelMaintenance: new ChannelMaintenanceAgent(db, credentialManager)
+    channelMaintenance: new ChannelMaintenanceAgent(db, credentialManager),
+    channelMonetization: new ChannelMonetizationAgent(db, credentialManager)
   };
 
   for (const [name, agent] of Object.entries(agents)) {

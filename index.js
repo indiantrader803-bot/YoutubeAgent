@@ -13,6 +13,7 @@ const { SEOOptimizerAgent } = require('./agents/seo-optimizer-agent');
 const { ProductionManagementAgent } = require('./agents/production-management-agent');
 const { PublishingSchedulingAgent } = require('./agents/publishing-scheduling-agent');
 const { AnalyticsOptimizationAgent } = require('./agents/analytics-optimization-agent');
+const { ChannelMonetizationAgent } = require('./agents/channel-monetization-agent');
 const { DailyAutomation } = require('./schedules/daily-automation');
 const { version } = require('./package.json');
 const chalk = require('chalk');
@@ -90,7 +91,8 @@ class YouTubeAutomationAgent {
       seoOptimizer: new SEOOptimizerAgent(this.db, this.credentials),
       production: new ProductionManagementAgent(this.db, this.credentials),
       publishing: new PublishingSchedulingAgent(this.db, this.credentials),
-      analytics: new AnalyticsOptimizationAgent(this.db, this.credentials)
+      analytics: new AnalyticsOptimizationAgent(this.db, this.credentials),
+      channelMonetization: new ChannelMonetizationAgent(this.db, this.credentials)
     };
 
     // Initialize each agent

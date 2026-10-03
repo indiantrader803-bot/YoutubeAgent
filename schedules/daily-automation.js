@@ -6,6 +6,7 @@ const { Logger } = require('../utils/logger');
 const { loadContentMatrix, getRunIndex, buildDailyBatch, computeBestPublishTime } = require('../config/content-matrix');
 const { EmailNotifier } = require('../utils/email-notifier');
 const { STYLE_ROTATION, pickVisualStyle } = require('../agents/video-quality-control-agent');
+const { ChannelMonetizationAgent } = require('../agents/channel-monetization-agent');
 
 // Vendored Agnes Video Generator (free AI text-to-video renderer, MIT).
 // One free key from https://platform.agnes-ai.com enables it as a real-render
@@ -60,6 +61,20 @@ class DailyAutomation {
       cron.schedule('*/15 * * * *', async () => {
         if (this.isEnabled) {
           await this.processPublishQueue();
+        }
+      }, { scheduled: false })
+    );
+
+    // Monetization + YouTube monitoring sweep (every 6 hours): tune titles /
+    // thumbnails / tags / category for revenue and schedule Milo compilations.
+    this.scheduledTasks.set('channel-monetization',
+      cron.schedule('0 */6 * * *', async () => {
+        if (this.isEnabled) {
+          try {
+            await this.agents.channelMonetization.run({ sweep: true });
+          } catch (mErr) {
+            this.logger.error('Channel monetization sweep failed:', mErr.message);
+          }
         }
       }, { scheduled: false })
     );
@@ -188,6 +203,16 @@ class DailyAutomation {
         const vstyle = pickVisualStyle(getRunIndex() * dailyBatch.length + i, isShort);
         strategy.visualStyle = vstyle.id;
         strategy.visualRenderer = vstyle.renderer;
+        if (item.topic.isKids) {
+          strategy.isKids = true;
+          strategy.categoryName = 'Milo\'s Little Adventures (Kids & Family)';
+          strategy.familyFriendly = true;
+          // Gentle 2D family cartoon, never the hard-hitting viral styles.
+          if (!vstyle.familyFriendly && vstyle.id !== 'kids-2d') {
+            strategy.visualStyle = 'kids-2d';
+            strategy.visualRenderer = 'storytime';
+          }
+        }
         this.logger.info(`[Video ${i + 1}] Strategy topic: ${strategy.topic} [${item.language.name}] [style: ${style.id}] [visual: ${vstyle.id}]`);
 
         // Generate script
@@ -221,6 +246,22 @@ class DailyAutomation {
           isShort
         });
 
+        // ────────────────────────────────────────────────────────────
+        // MONETIZATION + YOUTUBE MONITORING AGENT — before anything else
+        // publishes, the monetization agent scans the live channel and
+        // tunes titles/thumbnails/tags/category to chase both views and
+        // RPM. Kids uploads are always marked Made for Kids + get the
+        // channel's E/I program cycling so we stay on the right side of
+        // COPPA and the YouTube kids/family monetization path.
+        // ────────────────────────────────────────────────────────────
+        const monetAgent = this.agents.channelMonetization;
+        if (monetAgent && typeof monetAgent.run === 'function') {
+          try {
+            await monetAgent.run({ script, strategy, isShort, item, runIndex: getRunIndex() });
+          } catch (monetErr) {
+            this.logger.error(`Channel monetization agent failed for video ${i + 1}: ${monetErr.message}`);
+          }
+        }
         // ────────────────────────────────────────────────────────────
         // MULTI-AGENT VIDEO QC GATE — a video only goes to YouTube when the
         // technical probe, the AI virality scorer and the AI policy reviewer

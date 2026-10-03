@@ -20,12 +20,24 @@ function buildTopicPool() {
   const pool = [];
   for (const category of CATEGORIES) {
     for (const topic of category.topics) {
+      const isKids = category.id === 'milo-family';
       pool.push({
         id: `${category.id}:${topic.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40)}`,
         title: topic.title,
         categoryId: category.id,
         categoryName: category.name,
-        type: category.contentType,
+        type: isKids ? 'tomful-study-family' : category.contentType,
+        isKids,
+        isShort: false,
+        thumbnailColors: category.thumbnailColors,
+        thumbnailText: category.thumbnailText,
+        niches: [topic.title],
+        id: `${category.id}:${topic.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40)}`,
+        title: topic.title,
+        categoryId: category.id,
+        categoryName: category.name,
+        type: isKids ? 'tomful-study-family' : category.contentType,
+        isKids,
         isShort: false,
         thumbnailColors: category.thumbnailColors,
         thumbnailText: category.thumbnailText,
