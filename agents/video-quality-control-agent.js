@@ -29,7 +29,10 @@ const VISUAL_STYLES = [
   { id: 'realistic', label: 'Realistic Footage', renderer: 'stock', legacyStyle: 'realistic' },
   { id: '2d-cartoon', label: '2D Cartoon Story', renderer: 'storytime', legacyStyle: 'cartoon' },
   { id: 'motion-3d', label: '3D Motion Graphics', renderer: 'cinematic3d', legacyStyle: '3d' },
-  { id: 'json2video-motion', label: 'Cloud AI Motion', renderer: 'json2video', legacyStyle: 'cinematic', shortsOnly: true }
+  { id: 'json2video-motion', label: 'Cloud AI Motion', renderer: 'json2video', legacyStyle: 'cinematic', shortsOnly: true },
+  // Kids/family-friendly cartoon — gentle, soft, character-led 2D animation.
+  // Kept out of the default rotation because it is a separate series track.
+  { id: 'kids-2d', label: "Milo's 2D Family Cartoon", renderer: 'storytime', legacyStyle: 'kids-2d', familyFriendly: true }
 ];
 
 /** Pick a visual style for a video slot; long-form never gets Shorts-only styles. */

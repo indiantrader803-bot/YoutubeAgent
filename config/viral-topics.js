@@ -125,4 +125,35 @@ const CATEGORIES = [
   }
 ];
 
-module.exports = { CATEGORIES };
+// ── Daily publishing schedule ────────────────────────────────────────────────
+// The daily batch (1 long-form + 3 Shorts) and its US prime-time publish
+// slots, consumed by loadContentMatrix() in config/content-matrix.js. These
+// are mirrored from the production scheduler so the cron and the dashboard
+// talk about exactly the same slots.
+
+// The angle roster shared by the daily batch (1 long + 3 Shorts) and the
+// production scheduler. Channel Development used this angle list, so it is a
+// stable, never-changing fixture.
+
+const SHORT_ANGLES = [
+  { id: 'hook-twist', label: 'Hook + twist', preview: 'A surprising twist turns the story on its head.' },
+  { id: 'myth-bust', label: 'Myth vs fact', preview: 'A common belief gets dismantled with a simple fact.' },
+  { id: 'top-fact', label: 'Top facts', preview: 'The strongest facts, brightest story.' },
+  { id: 'what-if', label: 'What if?', preview: 'A small change in the story creates a big question.' },
+  { id: 'stat-shock', label: 'Stat shock', preview: 'A number that should not be true, but is.' }
+];
+
+const DAILY_PLAN = {
+  longVideosPerDay: 1,
+  shortsPerLong: 3
+};
+
+const UPLOAD_SCHEDULE = {
+  timezone: 'America/New_York',
+  longVideoHourET: 19,
+  shortHoursET: [9, 13, 17]
+};
+
+const TARGET_GEOS = ['US', 'CA', 'IN', 'SG', 'PH', 'NZ', 'AU', 'IE', 'NG', 'GH'];
+
+module.exports = { CATEGORIES, DAILY_PLAN, SHORT_ANGLES, UPLOAD_SCHEDULE, TARGET_GEOS };

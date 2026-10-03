@@ -402,6 +402,9 @@ function buildKidsCompilationDescription(episodes) {
   ].join('\n');
 }
 
+// Export for the rest of the platform.
+module.exports = { ChannelMonetizationAgent };
+
 // Standalone diagnostics entrypoint — safe to invoke from npm scripts (no YouTube writes).
 if (require.main === module) {
   const { Database } = require('../database/db');
