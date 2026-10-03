@@ -193,8 +193,14 @@ class DailyAutomation {
         // Generate script
         const script = await this.agents.scriptWriter.generateScript(strategy);
 
-        // Thumbnail
-        const thumbnail = await this.agents.thumbnailDesigner.generateThumbnail(script);
+        // Thumbnail — never allowed to abort the batch (a broken SVG or API
+        // hiccup here used to kill all 4 videos; the agent also self-falls-back).
+        let thumbnail = null;
+        try {
+          thumbnail = await this.agents.thumbnailDesigner.generateThumbnail(script);
+        } catch (thumbErr) {
+          this.logger.error(`Thumbnail generation failed for video ${i + 1} (uploading without custom thumbnail): ${thumbErr.message}`);
+        }
 
         // Optimize SEO (Strict YouTube Guidelines + Copyright Safe)
         const seoData = await this.agents.seoOptimizer.optimize(script, strategy);

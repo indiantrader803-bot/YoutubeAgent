@@ -3,6 +3,18 @@ const path = require('path');
 const fs = require('fs').promises;
 const { Logger } = require('../utils/logger');
 
+// Escape text interpolated into SVG templates — AI titles regularly contain
+// `&` / `<` / `>` which otherwise abort sharp's XML parser (live failure:
+// xmlParseEntityRef killed an entire daily batch).
+function escapeXml(text) {
+  return String(text ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
+}
+
 class ThumbnailDesignerAgent {
   constructor(db, credentials) {
     this.db = db;
@@ -61,7 +73,32 @@ class ThumbnailDesignerAgent {
       return thumbnailData;
     } catch (error) {
       this.logger.error('Failed to generate thumbnail:', error);
-      throw error;
+      // A thumbnail must NEVER abort the daily batch: fall back to a minimal,
+      // guaranteed-valid branded card instead of rethrowing.
+      try {
+        const fallbackPath = path.join(__dirname, '..', 'uploads', 'thumbnails', `thumbnail_fallback_${Date.now()}.png`);
+        const svg = `<svg width="1280" height="720" xmlns="http://www.w3.org/2000/svg">
+          <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#312e81"/><stop offset="100%" stop-color="#020617"/>
+          </linearGradient></defs>
+          <rect width="1280" height="720" fill="url(#g)"/>
+          <text x="640" y="340" font-family="Impact, Arial Black, sans-serif" font-size="72" font-weight="900" fill="#FACC15" stroke="#000" stroke-width="8" paint-order="stroke fill" text-anchor="middle">${escapeXml(String(script.title || 'VIRAL STORY').slice(0, 40))}</text>
+          <text x="640" y="430" font-family="Arial, sans-serif" font-size="34" fill="#ffffff" text-anchor="middle">WATCH TILL THE END</text>
+        </svg>`;
+        await sharp(Buffer.from(svg)).png().toFile(fallbackPath);
+        return {
+          path: fallbackPath,
+          concept: null,
+          prompt: '',
+          dimensions: { width: 1280, height: 720 },
+          fileSize: await this.getFileSize(fallbackPath),
+          fallback: true,
+          createdAt: new Date().toISOString()
+        };
+      } catch (fallbackErr) {
+        this.logger.error('Even the thumbnail fallback failed:', fallbackErr);
+        throw error;
+      }
     }
   }
 
@@ -274,7 +311,9 @@ class ThumbnailDesignerAgent {
     const theme = this.categoryThumbTheme(concept.categoryId, concept.visualStyle);
 
     try {
-      const bgBuffer = await sharp(Buffer.from(theme.svg(width, height))).png().toBuffer();
+      // theme scenes are SVG fragments — give them a proper root element.
+      const bgSvgDoc = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">${theme.svg(width, height)}</svg>`;
+      const bgBuffer = await sharp(Buffer.from(bgSvgDoc)).png().toBuffer();
 
       const isCartoon = String(concept.visualStyle || '').includes('cartoon');
       let heroBuffer = null;
@@ -287,8 +326,10 @@ class ThumbnailDesignerAgent {
         }
       }
 
-      const titleClean = String(concept.primaryText || concept.title || 'MUST WATCH').toUpperCase().slice(0, 20);
-      const subClean = String(concept.secondaryText || 'MUST WATCH').toUpperCase().slice(0, 24);
+      const titleClean = escapeXml(String(concept.primaryText || concept.title || 'MUST WATCH').toUpperCase().slice(0, 20));
+      const subClean = escapeXml(String(concept.secondaryText || 'MUST WATCH').toUpperCase().slice(0, 24));
+      const badgeText = escapeXml(theme.badge);
+      const punchText = escapeXml(theme.punchline);
 
       const titleSvg = Buffer.from(`
         <svg width="${width}" height="${height}">
@@ -304,7 +345,7 @@ class ThumbnailDesignerAgent {
 
           <!-- Top Badge (topic-specific) -->
           <rect x="50" y="60" width="430" height="65" rx="15" fill="${theme.badgeColor}" filter="url(#shadow)"/>
-          <text x="265" y="105" font-family="Impact, Arial Black, sans-serif" font-size="34" font-weight="900" fill="#FFFFFF" text-anchor="middle">${theme.badge}</text>
+          <text x="265" y="105" font-family="Impact, Arial Black, sans-serif" font-size="34" font-weight="900" fill="#FFFFFF" text-anchor="middle">${badgeText}</text>
 
           <!-- Main Catchy Title -->
           <text x="60" y="260" font-family="Impact, Arial Black, sans-serif" font-size="92" font-weight="900" fill="url(#yellowGrad)" stroke="#000000" stroke-width="12" paint-order="stroke fill" filter="url(#shadow)">${titleClean}!</text>
@@ -312,7 +353,7 @@ class ThumbnailDesignerAgent {
           
           <!-- Bottom Punchline Hook (topic-specific) -->
           <rect x="50" y="460" width="500" height="80" rx="20" fill="${theme.punchBg}" stroke="#000000" stroke-width="6" filter="url(#shadow)"/>
-          <text x="300" y="518" font-family="Impact, Arial Black, sans-serif" font-size="38" font-weight="900" fill="#FFFFFF" text-anchor="middle">${theme.punchline}</text>
+          <text x="300" y="518" font-family="Impact, Arial Black, sans-serif" font-size="38" font-weight="900" fill="#FFFFFF" text-anchor="middle">${punchText}</text>
         </svg>
       `);
 
@@ -332,7 +373,7 @@ class ThumbnailDesignerAgent {
       const fallbackSvg = `
         <svg width="${width}" height="${height}">
           <rect width="${width}" height="${height}" fill="#1e1b4b"/>
-          <text x="640" y="360" font-family="Arial, sans-serif" font-size="64" font-weight="bold" fill="#ffffff" text-anchor="middle">${concept.title || 'VIRAL STORY'}</text>
+          <text x="640" y="360" font-family="Arial, sans-serif" font-size="64" font-weight="bold" fill="#ffffff" text-anchor="middle">${escapeXml(concept.title || 'VIRAL STORY')}</text>
         </svg>
       `;
       await sharp(Buffer.from(fallbackSvg)).png().toFile(outputPath);

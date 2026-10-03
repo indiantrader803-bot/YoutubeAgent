@@ -248,9 +248,12 @@ class ProductionManagementAgent {
   }
 
   async processThumbnail(thumbnail, script) {
+    // thumbnail may be null when the thumbnail agent could not produce one —
+    // the video must still ship (with a generated/placeholder thumbnail).
+    const t = thumbnail || {};
     try {
       // Try to generate AI thumbnail first
-      const thumbnailScript = thumbnail.script || script || { title: thumbnail.title || 'Untitled Video' };
+      const thumbnailScript = t.script || script || { title: t.title || 'Untitled Video' };
       const aiThumbnail = await this.aiVideoGenerator.generateThumbnail(thumbnailScript, 'ethereal');
       
       return {
@@ -269,8 +272,8 @@ class ProductionManagementAgent {
         `thumbnail_${Date.now()}.jpg`
       );
       
-      if (thumbnail.path && await fs.access(thumbnail.path).then(() => true).catch(() => false)) {
-        const originalBuffer = await fs.readFile(thumbnail.path);
+      if (t.path && await fs.access(t.path).then(() => true).catch(() => false)) {
+        const originalBuffer = await fs.readFile(t.path);
         await fs.writeFile(productionThumbnailPath, originalBuffer);
       } else {
         // Create placeholder
@@ -279,9 +282,9 @@ class ProductionManagementAgent {
       
       return {
         path: productionThumbnailPath,
-        originalPath: thumbnail.path,
-        dimensions: thumbnail.dimensions || { width: 1792, height: 1024 },
-        fileSize: thumbnail.fileSize || 0
+        originalPath: t.path,
+        dimensions: t.dimensions || { width: 1792, height: 1024 },
+        fileSize: t.fileSize || 0
       };
     }
   }
