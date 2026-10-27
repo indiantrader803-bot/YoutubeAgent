@@ -228,22 +228,49 @@ class PublishingSchedulingAgent {
       if (!scheduleEntry) {
         throw new Error(`Content not found in queue or DB: ${contentId}`);
       }
-      
-      // Upload video to YouTube
+
+      // YouTube upload comes FIRST. If the API call throws, the queue entry
+      // is untouched and a retry will re-upload the same asset instead of
+      // republishing a live video as a duplicate.
       const uploadResult = await this.uploadToYouTube(scheduleEntry);
-      
-      // Update database
+      const youtubeId = uploadResult.id;
+      const youtubeUrl = `https://www.youtube.com/watch?v=${youtubeId}`;
+      const publishedAt = new Date().toISOString();
+
+      // Persist the completed publication immediately so the 15-min queue
+      // and the start-up catch-up both read the same state. A successful
+      // YouTube upload must never be lost by a later DB failure.
+      const persisted = await this.savePublishedState(
+        contentId, {
+          youtubeId,
+          youtubeUrl,
+          publishedAt,
+          scheduleEntry,
+          videoPath: scheduleEntry.metadata?.video?.path,
+          isShort: Boolean(scheduleEntry.isShort || scheduleEntry.metadata?.isShort || scheduleEntry.metadata?.video?.isShort),
+          videoLanguage: scheduleEntry.metadata?.language || scheduleEntry.metadata?.seo?.language || 'en',
+          title: scheduleEntry.title
+        }
+      ).catch(err => {
+        this.logger.error(`savePublishedState failed for ${contentId}: ${err.message}`);
+        return false;
+      });
+
+      if (!persisted) {
+        this.logger.error(`Published video ${contentId} is not persisted in publish_schedule — manual reconcile required.`);
+      }
+
+      // Now move the queue entry to published and remove it from the queue.
       scheduleEntry.status = 'published';
-      scheduleEntry.publishedAt = new Date().toISOString();
-      scheduleEntry.youtubeId = uploadResult.id;
-      scheduleEntry.youtubeUrl = `https://www.youtube.com/watch?v=${uploadResult.id}`;
+      scheduleEntry.publishedAt = publishedAt;
+      scheduleEntry.youtubeId = youtubeId;
+      scheduleEntry.youtubeUrl = youtubeUrl;
       
       await this.db.updateScheduleEntry(scheduleEntry);
       
-      // Remove from queue
       this.publishQueue = this.publishQueue.filter(entry => entry.productionId !== scheduleEntry.productionId);
       
-      this.logger.success(`Content published: ${scheduleEntry.youtubeUrl}`);
+      this.logger.success(`Content published: ${youtubeUrl}`);
 
       // Append to notifications.log
       await fs.appendFile(
@@ -586,6 +613,68 @@ class PublishingSchedulingAgent {
       .sort((a, b) => new Date(a.publishTime) - new Date(b.publishTime));
   }
 
+  // Queue-storage view: what is in the database right now.
+  // Public API callers (schedule panel, /schedule, dashboard) read this,
+  // not the in-memory publishQueue, so they always see a complete and
+  // consistent snapshot.
+  async getQueueStorage() {
+    if (!this.db || typeof this.db.getPublishQueue !== 'function') {
+      return [];
+    }
+    try {
+      return await this.db.getPublishQueue();
+    } catch (error) {
+      this.logger.warn(`Could not load publish queue storage: ${error.message}`);
+      return [];
+    }
+  }
+
+  // Composable publish guard: a video is ready to publish when it has a real
+  // (non-simulated) mp4, its database entry says scheduled, and no pending
+  // quality-gate or replay hold is attached. Publishing a half-rendered
+  // asset is the single biggest cause of "scheduled but never available" —
+  // this guard stops that before it exits the process.
+  isReadyToPublish(entry) {
+    if (!entry || !entry.metadata) return false;
+    const video = entry.metadata.video || entry.metadata.videoAsset || {};
+    if (!video || video.simulated) return false;
+    if (video.path && typeof video.path === 'string' && video.path.endsWith('.assembly.json')) return false;
+    const status = String(entry.status || '').toLowerCase();
+    if (status === 'failed' || status === 'rejected' || status === 'hold') return false;
+    return true;
+  }
+  
+  // Queue-storage view: what is in the database right now.
+  // Public API callers (schedule panel, /schedule, dashboard) read this,
+  // not the in-memory publishQueue, so they always see a complete and
+  // consistent snapshot.
+  async getQueueStorage() {
+    if (!this.db || typeof this.db.getPublishQueue !== 'function') {
+      return [];
+    }
+    try {
+      return await this.db.getPublishQueue();
+    } catch (error) {
+      this.logger.warn(`Could not load publish queue storage: ${error.message}`);
+      return [];
+    }
+  }
+  
+  // Composable publish guard: a video is ready to publish when it has a real
+  // (non-simulated) mp4, its database entry says ready/scheduled, and no
+  // pending quality-gate or replay hold is attached. Publishing a half-\r
+  // rendered asset is the single biggest cause of "schedules but never
+  // available" — this guard stops that before it exits the process.
+  isReadyToPublish(entry) {
+    if (!entry || !entry.metadata) return false;
+    const video = entry.metadata.video || entry.metadata.videoAsset || {};
+    if (!video || video.simulated) return false;
+    if (video.path && typeof video.path === 'string' && video.path.endsWith('.assembly.json')) return false;
+    const status = String(entry.status || '').toLowerCase();
+    if (status === 'failed' || status === 'rejected' || status === 'hold') return false;
+    return true;
+  }
+
   async optimizePublishTimes() {
     // Analyze channel analytics to find optimal publish times
     const analytics = await this.getChannelAnalytics();
@@ -701,6 +790,48 @@ class PublishingSchedulingAgent {
     };
     
     return report;
+  }
+
+  // Persist into publish_schedule so the 15-min queue and the start-up
+  // catch-up both read the same state. It also records publish_time and
+  // youtube_id on the row, so a published video is always visible and
+  // queryable (no more 'scheduled but never available').
+  async savePublishedState(videoId, payload) {
+    const { youtubeId, youtubeUrl, publishedAt, scheduleEntry, videoPath, isShort, videoLanguage, title } = payload;
+
+    // Insert a real publish_schedule row for this video.
+    const id = this.db.generateId ? this.db.generateId('schedule') : require('crypto').randomUUID();
+    await this.db.executeQuery(
+      `INSERT INTO publish_schedule (
+        id, production_id, title, publish_time, status, 
+        priority, metadata
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        id,
+        videoId,
+        title || 'Published Video',
+        publishedAt,
+        'published',
+        50,
+        JSON.stringify({
+          youtubeId,
+          youtubeUrl,
+          publishedAt,
+          videoPath,
+          isShort,
+          videoLanguage,
+          scheduleEntry,
+          publishedAtISO: publishedAt
+        })
+      ]
+    );
+
+    await this.db.executeQuery(
+      `UPDATE publish_schedule SET youtube_id = ?, youtube_url = ?, published_at = ? WHERE id = ?`,
+      [youtubeId, youtubeUrl, publishedAt, id]
+    );
+
+    return true;
   }
 
   async getPublishingPerformance() {
