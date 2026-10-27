@@ -190,3 +190,10 @@ runStandaloneAutomation().catch(async (err) => {
   await telegram.notifyError({ stage: 'GitHub Actions Batch Run', error: err.message });
   process.exit(1);
 });
+
+runStandaloneAutomation().catch(async (err) => {
+  logger.error('❌ GitHub Actions Pipeline Error:', err.message);
+  const telegram = new TelegramNotifier();
+  await telegram.notifyError({ stage: 'GitHub Actions Batch Run', error: err.message });
+  process.exit(1);
+});
