@@ -99,6 +99,19 @@ class DailyAutomation {
       }, { scheduled: false })
     );
 
+    // Weekly audience targeting & monetization review on Sundays at 8:00 AM IST
+    this.scheduledTasks.set('weekly-audience-growth',
+      cron.schedule('0 8 * * 0', async () => {
+        if (this.isEnabled && this.agents.audienceGrowth) {
+          try {
+            await this.agents.audienceGrowth.runAudienceOptimizationSweep();
+          } catch (gErr) {
+            this.logger.error('Audience growth sweep error:', gErr.message);
+          }
+        }
+      }, { scheduled: false, timezone: 'Asia/Kolkata' })
+    );
+
     // Weekly strategy review on Sundays at 8:00 AM
     this.scheduledTasks.set('weekly-strategy-review',
       cron.schedule('0 8 * * 0', async () => {

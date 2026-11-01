@@ -15,6 +15,7 @@ const { YouTubeStudioAnalyticsMonitorAgent } = require('../agents/youtube-studio
 const { VideoQualityControlAgent } = require('../agents/video-quality-control-agent');
 const { ChannelMaintenanceAgent } = require('../agents/channel-maintenance-agent');
 const { ChannelMonetizationAgent } = require('../agents/channel-monetization-agent');
+const { AudienceTargetingGrowthAgent } = require('../agents/audience-targeting-growth-agent');
 const { DailyAutomation } = require('../schedules/daily-automation');
 const { getRunIndex } = require('../config/content-matrix');
 const { Logger } = require('../utils/logger');
@@ -47,7 +48,8 @@ async function runStandaloneAutomation() {
     studioMonitor: new YouTubeStudioAnalyticsMonitorAgent(db, credentialManager),
     qualityControl: new VideoQualityControlAgent(db, credentialManager),
     channelMaintenance: new ChannelMaintenanceAgent(db, credentialManager),
-    channelMonetization: new ChannelMonetizationAgent(db, credentialManager)
+    channelMonetization: new ChannelMonetizationAgent(db, credentialManager),
+    audienceGrowth: new AudienceTargetingGrowthAgent(db, credentialManager)
   };
 
   for (const [name, agent] of Object.entries(agents)) {
@@ -127,6 +129,9 @@ async function runStandaloneAutomation() {
   let generationFailed = false;
   try {
     await dailyAutomation.runDailyContentGeneration();
+    await agents.audienceGrowth.runAudienceOptimizationSweep().catch(agErr => {
+      logger.warn(`Audience growth optimization sweep non-fatal: ${agErr.message}`);
+    });
   } catch (genErr) {
     // The batch already escalated (Telegram alert + verdict). Keep going:
     // queued entries from earlier runs still deserve a publish attempt and
