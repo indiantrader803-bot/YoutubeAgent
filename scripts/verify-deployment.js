@@ -14,7 +14,7 @@ require('dotenv').config();
 const { google } = require('googleapis');
 const nodemailer = require('nodemailer');
 
-const OWNER_EMAIL = process.env.OWNER_EMAIL || 'arnab.laha2018@gmail.com';
+const _OWNER_EMAIL = process.env.OWNER_EMAIL || 'arnab.laha2018@gmail.com';
 const results = [];
 
 async function verifyYouTube() {
