@@ -68,6 +68,16 @@ jobs:
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           # Optional custom topics (pipe-separated, comma allowed inside a topic):
           # CONTENT_TOPICS: "Topic one|Topic two"
+          # Visual style: every video uses the animated 2D cartoon renderer.
+          # Delete this line to go back to the mixed rotation (cinematic,
+          # realistic footage, 3D motion, ...).
+          FORCE_VISUAL_STYLE: "2d-cartoon"
+          # Growth: reply to real viewer comments on the newest uploads (max 6
+          # per run). Set to "false" to turn it off.
+          COMMENT_REPLIES_ENABLED: "true"
+          # Your channel handle — shown in the on-video Subscribe prompt and in
+          # the description's one-click subscribe link. SET THIS to your handle.
+          CHANNEL_HANDLE: ${{ vars.CHANNEL_HANDLE || '@BROblox' }}
           # Daily output: 1 long-form + N Shorts derived from it (max 5 angles)
           DAILY_SHORTS: "3"
           # US prime-time publish slots (America/New_York). Long-form 7 PM ET,

@@ -130,6 +130,22 @@ class StorytimeAnimationEngine {
     if (/cry|roya|sad|dukh|dard|aansu|dardnaak|khatam/i.test(lower)) {
       return 'crying';
     }
+    // English narration (the channel's default language)
+    if (/\b(angry|furious|rage|destroy\w*|disaster|collapse\w*|danger\w*|deadly|war|attack\w*|explo\w+|catastroph\w+|crisis|worst|chaos)\b/i.test(lower)) {
+      return 'screaming_angry';
+    }
+    if (/\b(funny|hilarious|laugh\w*|joke|lol|haha|ridiculous|silly|amazing|incredible|awesome|fun)\b/i.test(lower)) {
+      return 'laughing';
+    }
+    if (/\b(sad|cry\w*|lost|loss|tragic|tragedy|died|death|alone|failed|fail|ruin\w*|heartbreak\w*|sorrow)\b/i.test(lower)) {
+      return 'crying';
+    }
+    if (/\b(wait|shock\w*|suddenly|unbelievable|impossible|insane|crazy|vanish\w*|disappear\w*|secret|truth|hidden|mystery|warning|massive|huge|nobody|never)\b/i.test(lower)) {
+      return 'shocked';
+    }
+    if (/\b(listen|look|notice|remember|rule|tip|key|important|first|second|third|step|number|here's|let's)\b/i.test(lower)) {
+      return 'pointing';
+    }
     return 'neutral_talk';
   }
 
@@ -146,7 +162,6 @@ class StorytimeAnimationEngine {
     ];
 
     const assetsDir = path.resolve(__dirname, '..', 'assets');
-    const charsDir = path.join(assetsDir, 'characters');
     const bgDir = path.join(assetsDir, 'backgrounds');
 
     // Category-themed backgrounds (space video ≠ classroom video!)
@@ -172,29 +187,52 @@ class StorytimeAnimationEngine {
       }
     }
 
-    const sceneCount = rawSections.length;
-    const framesPerScene = Math.floor(totalFrames / sceneCount);
+    // Split every section into short "beats" (1-3 sentences, roughly 8 seconds)
+    // so the picture changes every few seconds instead of holding one pose for
+    // a whole 30-second section. Each beat's length follows its share of the
+    // words, which tracks the narration far better than equal slices.
+    const beats = [];
+    rawSections.forEach((sec, secIndex) => {
+      const text = Array.isArray(sec.content) ? sec.content.join(' ') : (sec.content || sec.title || '');
+      const sentences = String(text).replace(/\s+/g, ' ').trim().split(/(?<=[.!?…])\s+/).filter(Boolean);
+      let current = [];
+      let words = 0;
+      const flush = () => {
+        if (current.length) {
+          beats.push({ text: current.join(' '), pose: sec.pose, background: sec.background, secIndex });
+          current = [];
+          words = 0;
+        }
+      };
+      for (const sentence of sentences) {
+        const w = sentence.split(' ').length;
+        if (current.length && words + w > 26) flush();
+        current.push(sentence);
+        words += w;
+      }
+      flush();
+    });
+    if (beats.length === 0) beats.push({ text: script?.title || '', secIndex: 0 });
+
+    const wordCount = (t) => Math.max(1, String(t).split(' ').length);
+    const totalWords = beats.reduce((n, b) => n + wordCount(b.text), 0);
+    // Variety for neutral beats: alternate gestures so it never looks frozen.
+    const neutralCycle = ['neutral_talk', 'pointing', 'neutral_talk', 'shocked'];
 
     const scenes = [];
     let currentFrame = 0;
 
-    for (let i = 0; i < rawSections.length; i++) {
-      const sec = rawSections[i];
-      const text = Array.isArray(sec.content) ? sec.content.join(' ') : (sec.content || sec.title || '');
-      const pose = sec.pose || this.inferPoseFromText(text);
-      const isLast = i === rawSections.length - 1;
-      const durationInFrames = isLast ? (totalFrames - currentFrame) : framesPerScene;
+    for (let i = 0; i < beats.length; i++) {
+      const beat = beats[i];
+      const text = beat.text;
+      const isLast = i === beats.length - 1;
+      const durationInFrames = isLast
+        ? Math.max(30, totalFrames - currentFrame)
+        : Math.max(45, Math.round(totalFrames * (wordCount(text) / totalWords)));
 
-      // Select sprite file as Base64 Data URI
-      const spriteFileName = `hero_${pose}.png`;
-      const spritePath = path.join(charsDir, spriteFileName);
-      let spriteUrl = null;
-      try {
-        const sBuf = await fs.readFile(spritePath);
-        spriteUrl = `data:image/png;base64,${sBuf.toString('base64')}`;
-      } catch (e) {
-        // fallback
-      }
+      let pose = beat.pose || this.inferPoseFromText(text);
+      if (!beat.pose && pose === 'neutral_talk' && i > 0) pose = neutralCycle[i % neutralCycle.length];
+      if (!beat.pose && isLast && pose === 'neutral_talk') pose = 'pointing';
 
       // Category-themed background first; classic cartoon rooms only for
       // generic/custom topics.
@@ -206,32 +244,30 @@ class StorytimeAnimationEngine {
         accent = themed.accent;
       } else {
         const legacyRooms = ['classroom', 'bedroom', 'street'];
-        const bgName = sec.background || legacyRooms[i % legacyRooms.length];
+        const bgName = beat.background || legacyRooms[i % legacyRooms.length];
         const bgPath = path.join(bgDir, `${bgName}.png`);
         try {
           const bBuf = await fs.readFile(bgPath);
           bgUrl = `data:image/png;base64,${bBuf.toString('base64')}`;
         } catch (e) {
-          // fallback
+          // fallback: the composition paints its own gradient base
         }
+        const roomAccents = ['#38bdf8', '#fb923c', '#a78bfa', '#34d399'];
+        accent = roomAccents[i % roomAccents.length];
       }
 
       const isPunchline = pose === 'screaming_angry' || pose === 'shocked';
-      const zoom = isPunchline ? (isShort ? 1.25 : 1.35) : 1.0;
-      const vfx = isPunchline ? 'speed_lines' : 'none';
-
       scenes.push({
         id: i,
         startFrame: currentFrame,
         durationInFrames,
         speaker: 'hero',
         pose,
-        characterImage: spriteUrl,
         bgImage: bgUrl,
         text,
         accent,
-        zoom,
-        vfx
+        zoom: isPunchline ? 1.25 : 1.0,
+        vfx: isPunchline ? 'speed_lines' : 'none'
       });
 
       currentFrame += durationInFrames;
@@ -271,13 +307,14 @@ class StorytimeAnimationEngine {
     const isTrading = /trading|crypto|forex|stock|candlestick|chart|breakout|pattern|entry/i.test(
       (script?.title || '') + ' ' + (script?.topic || '') + ' ' + (script?.videoStyle || '')
     );
-    const compositionId = isTrading ? 'TradingVideo' : 'StorytimeVideo';
+    const compositionId = isTrading ? 'TradingVideo' : 'CartoonStoryVideo';
 
     const compositionProps = {
       title: script?.title || 'SECRET ENTRY STRATEGY 🚀',
       strategyType: script?.strategyType || 'Bull Flag Breakout',
       scenes,
-      isShort
+      isShort,
+      channelHandle: process.env.CHANNEL_HANDLE || '@BROblox'
     };
 
     // 4. Select Composition
@@ -303,7 +340,7 @@ class StorytimeAnimationEngine {
         codec: 'h264',
         outputLocation: tempVisualPath,
         inputProps: compositionProps,
-        concurrency: 2,
+        concurrency: Math.max(2, Math.min(4, require('os').cpus().length)),
         scale: 1,
         imageFormat: 'jpeg',
         pixelFormat: 'yuv420p',

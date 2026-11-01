@@ -38,6 +38,14 @@ const VISUAL_STYLES = [
 /** Pick a visual style for a video slot; long-form never gets Shorts-only styles. */
 function pickVisualStyle(slotIndex, isShort) {
   const pool = VISUAL_STYLES.filter((s) => !s.shortsOnly || isShort);
+  // FORCE_VISUAL_STYLE=2d-cartoon pins every video to one style (e.g. to run a
+  // pure 2D-animation channel). Unknown ids, or a Shorts-only style requested
+  // for a long-form slot, fall back to the normal rotation.
+  const forced = String(process.env.FORCE_VISUAL_STYLE || '').trim().toLowerCase();
+  if (forced) {
+    const match = pool.find((s) => s.id === forced);
+    if (match) return match;
+  }
   return pool[((slotIndex % pool.length) + pool.length) % pool.length];
 }
 

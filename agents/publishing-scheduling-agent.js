@@ -430,6 +430,83 @@ class PublishingSchedulingAgent {
     this.logger.info(`Engagement comment posted on ${videoId}`);
   }
 
+  // Reply to real viewer comments on the newest uploads. Replies bring
+  // viewers back, lift the "comments" signal on the video, and show new
+  // visitors a channel that talks back — the most reliable organic lever for
+  // converting viewers to subscribers.
+  //
+  // Deliberately conservative so it can never look like spam: opt-in,
+  // capped per run, only top-level comments that have no reply yet, never the
+  // channel's own comments, wording varies, and every failure is non-fatal.
+  // Quota note: each reply (comments.insert) costs 50 units of the 10,000/day.
+  async replyToViewerComments({ maxVideos = 5, maxReplies = 6 } = {}) {
+    if (!this.youtube) return { replied: 0, skipped: 'no youtube client' };
+
+    const mine = await this.youtube.channels.list({ part: 'id,contentDetails', mine: true });
+    const channel = mine.data.items?.[0];
+    const ownChannelId = channel?.id;
+    const uploadsId = channel?.contentDetails?.relatedPlaylists?.uploads;
+    if (!ownChannelId || !uploadsId) return { replied: 0, skipped: 'channel not found' };
+
+    const recent = await this.youtube.playlistItems.list({
+      part: 'contentDetails',
+      playlistId: uploadsId,
+      maxResults: maxVideos
+    });
+    const videoIds = (recent.data.items || []).map((i) => i.contentDetails?.videoId).filter(Boolean);
+
+    const templates = [
+      (n) => `Thanks for watching, ${n}! 🙌 What should the next video cover?`,
+      (n) => `Appreciate you, ${n}! Tell me which part you'd like explained in more depth.`,
+      (n) => `Great point, ${n}! Subscribe so you don't miss tomorrow's video. 🔔`,
+      (n) => `Love this, ${n}! What other topic should I make a video about?`,
+      (n) => `Thank you ${n}! Your comment helps — more videos coming every day.`,
+      (n) => `Glad you're here, ${n}! Any "what if" you want me to explore next?`
+    ];
+
+    let replied = 0;
+    for (const videoId of videoIds) {
+      if (replied >= maxReplies) break;
+      let threads;
+      try {
+        threads = await this.youtube.commentThreads.list({
+          part: 'snippet',
+          videoId,
+          maxResults: 20,
+          order: 'time',
+          textFormat: 'plainText'
+        });
+      } catch (err) {
+        this.logger.warn(`Comment fetch skipped for ${videoId}: ${err.message}`);
+        continue; // comments disabled / not yet processed
+      }
+
+      for (const thread of threads.data.items || []) {
+        if (replied >= maxReplies) break;
+        const top = thread.snippet?.topLevelComment?.snippet;
+        if (!top) continue;
+        if (top.authorChannelId?.value === ownChannelId) continue; // our own seeded comment
+        if (thread.snippet.totalReplyCount > 0) continue; // already answered
+        const words = String(top.textOriginal || '').trim().split(/\s+/).filter(Boolean);
+        if (words.length < 3) continue; // skip "first", emoji-only, etc.
+
+        const name = String(top.authorDisplayName || 'friend').replace(/^@/, '').slice(0, 30);
+        const text = templates[(replied + videoIds.indexOf(videoId)) % templates.length](name);
+        try {
+          await this.youtube.comments.insert({
+            part: 'snippet',
+            requestBody: { snippet: { parentId: thread.snippet.topLevelComment.id, textOriginal: text } }
+          });
+          replied++;
+        } catch (err) {
+          this.logger.warn(`Reply skipped on ${videoId}: ${err.message}`);
+        }
+      }
+    }
+    this.logger.info(`Replied to ${replied} viewer comment(s) across ${videoIds.length} recent video(s)`);
+    return { replied };
+  }
+
   // Niche-playlist SEO: match the upload title to a topic playlist and add it.
   // Playlists are discovered once per process by name (no env config needed);
   // failures (playlist renamed/deleted, duplicate insert) are non-fatal.

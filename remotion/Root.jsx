@@ -3,10 +3,25 @@ import { Composition } from 'remotion';
 import { StorytimeComposition } from './StorytimeComposition';
 import { AICinematicComposition } from './AICinematicComposition';
 import { TradingComposition } from './TradingComposition';
+import { CartoonStoryComposition } from './CartoonStoryComposition';
 
 export const RemotionRoot = () => {
   return (
     <>
+      <Composition
+        id="CartoonStoryVideo"
+        component={CartoonStoryComposition}
+        durationInFrames={300}
+        fps={30}
+        width={1920}
+        height={1080}
+        defaultProps={{
+          title: '',
+          scenes: [],
+          isShort: false,
+          channelHandle: ''
+        }}
+      />
       <Composition
         id="StorytimeVideo"
         component={StorytimeComposition}

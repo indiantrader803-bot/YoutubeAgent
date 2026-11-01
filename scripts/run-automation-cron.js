@@ -149,6 +149,17 @@ async function runStandaloneAutomation() {
     logger.error(`Retry pass failed: ${retryErr.message}`);
   }
 
+  // Growth: answer viewer comments on the newest uploads (opt-in via
+  // COMMENT_REPLIES_ENABLED=true). Capped and non-fatal — see
+  // PublishingSchedulingAgent.replyToViewerComments.
+  if (String(process.env.COMMENT_REPLIES_ENABLED || '').toLowerCase() === 'true') {
+    try {
+      await agents.publishing.replyToViewerComments({ maxVideos: 5, maxReplies: 6 });
+    } catch (replyErr) {
+      logger.warn(`Comment replies skipped: ${replyErr.message}`);
+    }
+  }
+
   // ── Run verdict → exit code ────────────────────────────────────────────
   // The permanent fix for "workflow green but nothing published": this script
   // computes the REAL outcome from the publish_schedule table and exits
