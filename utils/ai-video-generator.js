@@ -61,6 +61,7 @@ class AIVideoGenerator {
     const { StorytimeAnimationEngine } = require('./storytime-animation-engine');
     const { AICinematicEngine } = require('./ai-cinematic-engine');
     const { OpenMontageBridge } = require('./openmontage-bridge');
+    const { upscayl } = require('./upscayl-engine');
 
     this.ttsProvider = new TTSProvider();
     this.subtitleProvider = new SubtitleProvider();
@@ -70,6 +71,7 @@ class AIVideoGenerator {
     this.storytimeEngine = new StorytimeAnimationEngine();
     this.cinematicEngine = new AICinematicEngine();
     this.openMontage = new OpenMontageBridge();
+    this.upscayl = upscayl;
   }
 
   async generateTTSAudio(text, outputPath, options = {}) {
@@ -235,6 +237,16 @@ class AIVideoGenerator {
       for (let i = 0; i < count; i++) {
         const imagePath = path.join(__dirname, '..', 'data', 'assets', `visual_${Date.now()}_${i}.png`);
         await this.generateImage(enhancedPrompt, imagePath);
+        
+        // Upscayl resolution enhancement for video backgrounds
+        try {
+          if (process.env.DISABLE_UPSCAYL !== 'true') {
+            await this.upscayl.upscaleImage(imagePath);
+          }
+        } catch (uErr) {
+          this.logger.warn(`Upscayl visual pass error: ${uErr.message}`);
+        }
+
         localPaths.push(imagePath);
       }
 

@@ -2,6 +2,7 @@ const axios = require('axios');
 const fs = require('fs').promises;
 const path = require('path');
 const { detectHardware } = require('./dependency-manager');
+const { upscayl } = require('./upscayl-engine');
 
 class ImageProvider {
   constructor(options = {}) {
@@ -14,18 +15,19 @@ class ImageProvider {
   async generate(prompt, imagePath) {
     await fs.mkdir(path.dirname(imagePath), { recursive: true });
 
+    let finalPath = null;
     // 1. Try NVIDIA FLUX.1-dev for ultra-high quality and character consistency
     try {
-      return await this.generateFluxNVIDIA(prompt, imagePath);
+      finalPath = await this.generateFluxNVIDIA(prompt, imagePath);
     } catch (err) {
       console.warn(`[ImageProvider] NVIDIA FLUX.1-dev unavailable (${err.message}). Trying fallback generators...`);
     }
 
     // 2. Try ComfyUI if hardware VRAM >= 6GB or explicitly enabled
-    if (this.hardware.vramGb >= 6 || this.provider === 'comfyui') {
+    if (!finalPath && (this.hardware.vramGb >= 6 || this.provider === 'comfyui')) {
       try {
         if (await this.health_check()) {
-          return await this.generateComfyUI(prompt, imagePath);
+          finalPath = await this.generateComfyUI(prompt, imagePath);
         }
       } catch (err) {
         console.warn(`[ImageProvider] ComfyUI local image generation unavailable (${err.message}). Using visual stock media fallback.`);
@@ -33,7 +35,20 @@ class ImageProvider {
     }
 
     // 3. Fallback: Free Visual Canvas API
-    return await this.generateStockFallback(prompt, imagePath);
+    if (!finalPath) {
+      finalPath = await this.generateStockFallback(prompt, imagePath);
+    }
+
+    // Apply Upscayl AI Upscaling to 1080p/4K
+    try {
+      if (finalPath && process.env.DISABLE_UPSCAYL !== 'true') {
+        finalPath = await upscayl.upscaleImage(finalPath);
+      }
+    } catch (uErr) {
+      console.warn(`[ImageProvider] Upscaling warning: ${uErr.message}`);
+    }
+
+    return finalPath;
   }
 
   async generate_batch(prompts, outputDir) {

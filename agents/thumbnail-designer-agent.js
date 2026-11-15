@@ -2,6 +2,7 @@ const sharp = require('sharp');
 const path = require('path');
 const fs = require('fs').promises;
 const { Logger } = require('../utils/logger');
+const { upscayl } = require('../utils/upscayl-engine');
 
 // Escape text interpolated into SVG templates — AI titles regularly contain
 // `&` / `<` / `>` which otherwise abort sharp's XML parser (live failure:
@@ -556,6 +557,15 @@ class ThumbnailDesignerAgent {
   async optimizeForYouTube(imagePath) {
     const outputPath = path.join(__dirname, '..', 'uploads', 'thumbnails', `thumbnail_optimized_${Date.now()}.jpg`);
     
+    // Apply Upscayl high-definition enhancement before finalizing
+    try {
+      if (process.env.DISABLE_UPSCAYL !== 'true') {
+        await upscayl.upscaleImage(imagePath, imagePath, { targetWidth: 1920, targetHeight: 1080 });
+      }
+    } catch (uErr) {
+      this.logger.warn(`Upscayl thumbnail pass skipped: ${uErr.message}`);
+    }
+
     // YouTube optimization: JPEG format, proper compression
     await sharp(imagePath)
       .resize(1280, 720, {
@@ -563,7 +573,7 @@ class ThumbnailDesignerAgent {
         position: 'centre'
       })
       .jpeg({
-        quality: 90,
+        quality: 95,
         progressive: true,
         optimizeScans: true
       })
