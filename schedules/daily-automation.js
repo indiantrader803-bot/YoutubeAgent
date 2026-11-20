@@ -132,6 +132,18 @@ class DailyAutomation {
                 privacyStatus: 'public'
               });
               this.logger.success(`✓ Successfully scheduled GTA Short: ${clip.title}`);
+              await this.processPublishQueue(true).catch(e => this.logger.warn(`Process queue deferred: ${e.message}`));
+
+              // Alert owner immediately
+              const TelegramNotifier = require('../utils/telegram-notifier').TelegramNotifier;
+              const alertTg = new TelegramNotifier();
+              await alertTg.sendMessage(
+                `🎮 <b>New GTA 6 Clip Uploaded to YouTube!</b>\n\n` +
+                `<b>Title:</b> ${clip.title}\n` +
+                `<b>Channel:</b> BROblox\n` +
+                `<b>Source Streamer:</b> ${clip.creator || 'Popular Streamer'}\n` +
+                `<b>Status:</b> Live Public Short 🚀`
+              ).catch(() => {});
             }
           } catch (cErr) {
             this.logger.error('Error in scheduled GTA stream clipping:', cErr.message);

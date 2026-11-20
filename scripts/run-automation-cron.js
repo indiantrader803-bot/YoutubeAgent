@@ -176,8 +176,25 @@ async function runStandaloneAutomation() {
           privacyStatus: 'public'
         });
         logger.success(`✓ Scheduled new GTA 6 Short: ${clip.title}`);
+        
         // Immediately process queue to publish it now
         await dailyAutomation.processPublishQueue(true).catch(e => logger.warn(`Publishing GTA short deferred: ${e.message}`));
+
+        // Instant Notification (Telegram + Email) so you know the second it's live!
+        const alertTelegram = new TelegramNotifier();
+        await alertTelegram.sendMessage(
+          `🎮 <b>New GTA 6 Clip Uploaded to YouTube!</b>\n\n` +
+          `<b>Title:</b> ${clip.title}\n` +
+          `<b>Channel:</b> BROblox\n` +
+          `<b>Source Streamer:</b> ${clip.creator || 'Popular Streamer'}\n` +
+          `<b>Status:</b> Live Public Short 🚀`
+        ).catch(() => {});
+
+        const alertEmail = new EmailNotifier();
+        await alertEmail.send(
+          `🎮 New GTA 6 Clip Live on YouTube: "${clip.title}"`,
+          `Your automated GTA 6 clipper just processed and published a new Short to BROblox!\n\nTitle: ${clip.title}\nSource: ${clip.sourceUrl}\nStatus: Public Short\n\nCheck your channel: https://youtube.com/@BROblox`
+        ).catch(() => {});
       }
     } catch (gtaErr) {
       logger.warn(`GTA Stream Clipping pass non-fatal error: ${gtaErr.message}`);
