@@ -112,6 +112,34 @@ class DailyAutomation {
       }, { scheduled: false, timezone: 'Asia/Kolkata' })
     );
 
+    // Dedicated GTA 6 Livestream & Gameplay Auto-Clipper Task (Every 6 hours: 12 AM, 6 AM, 12 PM, 6 PM UTC)
+    // Runs autonomously 24/7 without changing or modifying existing daily cartoon/trading videos.
+    this.scheduledTasks.set('gta-stream-clipping',
+      cron.schedule('0 */6 * * *', async () => {
+        if (this.isEnabled && this.agents.gtaClipper) {
+          try {
+            this.logger.info('🚀 Triggering scheduled GTA 6 Livestream Clipper...');
+            const clip = await this.agents.gtaClipper.runClippingCycle({ duration: 35 });
+            if (clip && this.agents.publishing) {
+              await this.agents.publishing.scheduleContent({
+                contentId: `gta_${Date.now()}`,
+                title: clip.title,
+                description: clip.description,
+                tags: clip.tags,
+                videoPath: clip.videoPath,
+                videoType: 'short',
+                platform: 'youtube',
+                privacyStatus: 'public'
+              });
+              this.logger.success(`✓ Successfully scheduled GTA Short: ${clip.title}`);
+            }
+          } catch (cErr) {
+            this.logger.error('Error in scheduled GTA stream clipping:', cErr.message);
+          }
+        }
+      }, { scheduled: false })
+    );
+
     // Weekly strategy review on Sundays at 8:00 AM
     this.scheduledTasks.set('weekly-strategy-review',
       cron.schedule('0 8 * * 0', async () => {

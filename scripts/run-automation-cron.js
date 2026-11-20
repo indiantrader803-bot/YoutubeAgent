@@ -16,6 +16,7 @@ const { VideoQualityControlAgent } = require('../agents/video-quality-control-ag
 const { ChannelMaintenanceAgent } = require('../agents/channel-maintenance-agent');
 const { ChannelMonetizationAgent } = require('../agents/channel-monetization-agent');
 const { AudienceTargetingGrowthAgent } = require('../agents/audience-targeting-growth-agent');
+const { GTAStreamClipperAgent } = require('../agents/gta-stream-clipper-agent');
 const { DailyAutomation } = require('../schedules/daily-automation');
 const { getRunIndex } = require('../config/content-matrix');
 const { Logger } = require('../utils/logger');
@@ -49,7 +50,8 @@ async function runStandaloneAutomation() {
     qualityControl: new VideoQualityControlAgent(db, credentialManager),
     channelMaintenance: new ChannelMaintenanceAgent(db, credentialManager),
     channelMonetization: new ChannelMonetizationAgent(db, credentialManager),
-    audienceGrowth: new AudienceTargetingGrowthAgent(db, credentialManager)
+    audienceGrowth: new AudienceTargetingGrowthAgent(db, credentialManager),
+    gtaClipper: new GTAStreamClipperAgent(db, credentialManager)
   };
 
   for (const [name, agent] of Object.entries(agents)) {
@@ -152,6 +154,34 @@ async function runStandaloneAutomation() {
     await dailyAutomation.retryFailedPublishes();
   } catch (retryErr) {
     logger.error(`Retry pass failed: ${retryErr.message}`);
+  }
+
+  // ── GTA 6 Livestream & Gameplay Auto-Clipper Pass ────────────────────────
+  // Autonomous 24/7 feature: clips popular GTA 6 streamer highlights into
+  // 9:16 vertical Shorts and schedules/publishes them immediately.
+  // Independent pass that never touches or interferes with daily cartoon/trading videos.
+  if (process.env.GTA_CLIPPING_ENABLED !== 'false') {
+    try {
+      logger.info('🎮 Running GTA 6 Stream Highlight Clipper Pass...');
+      const clip = await agents.gtaClipper.runClippingCycle({ duration: 35 });
+      if (clip && agents.publishing) {
+        await agents.publishing.scheduleContent({
+          contentId: `gta_${Date.now()}`,
+          title: clip.title,
+          description: clip.description,
+          tags: clip.tags,
+          videoPath: clip.videoPath,
+          videoType: 'short',
+          platform: 'youtube',
+          privacyStatus: 'public'
+        });
+        logger.success(`✓ Scheduled new GTA 6 Short: ${clip.title}`);
+        // Immediately process queue to publish it now
+        await dailyAutomation.processPublishQueue(true).catch(e => logger.warn(`Publishing GTA short deferred: ${e.message}`));
+      }
+    } catch (gtaErr) {
+      logger.warn(`GTA Stream Clipping pass non-fatal error: ${gtaErr.message}`);
+    }
   }
 
   // Growth: answer viewer comments on the newest uploads (opt-in via
