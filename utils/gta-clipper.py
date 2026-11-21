@@ -23,8 +23,9 @@ import random
 from pathlib import Path
 
 DEFAULT_SEARCHES = [
-    "GTA 6 gameplay reaction funny moments",
-    "GTA 6 gameplay walkthrough commentary",
+    "GTA 6 gameplay highlights",
+    "GTA 6 funny moments",
+    "GTA 6 gameplay walkthrough",
     "GTA 6 trailer breakdown gameplay",
     "GTA 6 streamer funny moments"
 ]
@@ -41,15 +42,15 @@ def find_candidate_video(query=None):
     
     cmd = [
         sys.executable, "-m", "yt_dlp",
-        "--default-search", "ytsearch5",
+        "--default-search", "ytsearch15",
         search_q,
         "--dump-json",
         "--no-playlist",
         "--no-update",
-        "--match-filter", "duration > 60 & duration < 1800"  # 1 min to 30 mins
+        "--ignore-errors"
     ]
     p = run_cmd(cmd, check=False)
-    lines = [line.strip() for line in p.stdout.strip().split("\n") if line.strip()]
+    lines = [line.strip() for line in p.stdout.strip().split("\n") if line.strip().startswith("{")]
     if not lines:
         raise RuntimeError("No candidate GTA stream found matching criteria.")
     
@@ -57,19 +58,21 @@ def find_candidate_video(query=None):
         try:
             info = json.loads(line)
             duration = info.get("duration", 0)
-            if 60 <= duration <= 1800:
+            # Accept videos between 60s and 3600s (up to 1 hour)
+            if 60 <= duration <= 3600:
                 print(f"[GTA-Clipper] Selected video: '{info.get('title')}' by {info.get('uploader')} ({duration}s)", file=sys.stderr)
                 return info
         except Exception:
             continue
             
+    # Fallback to first valid entry
     return json.loads(lines[0])
 
 def download_video(webpage_url, out_temp_path):
     print(f"[GTA-Clipper] Downloading source stream via yt-dlp...", file=sys.stderr)
     cmd = [
         sys.executable, "-m", "yt_dlp",
-        "-f", "134+140/best[height<=720]/best",
+        "-f", "18/134+140/best[height<=720]/best",
         "--no-update",
         "--force-overwrites",
         "-o", out_temp_path,
