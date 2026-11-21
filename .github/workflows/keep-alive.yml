@@ -2,9 +2,11 @@ name: 24/7 Serverless Daily Video Automation
 
 on:
   schedule:
-    # Once daily at 6:00 AM IST (00:30 UTC). One run produces 1 Short + 1
-    # long-form, keeping the channel under YouTube's daily upload cap.
-    - cron: '30 0 * * *'
+    # 24/7 Automated Schedule:
+    # Runs 4 times daily (every 6 hours: 00:30, 06:30, 12:30, 18:30 UTC)
+    # 00:30 UTC is 6:00 AM IST (main daily batch + GTA clips)
+    # The other 3 runs publish fresh GTA 6 livestream clips throughout the day.
+    - cron: '30 0,6,12,18 * * *'
   workflow_dispatch:
 
 jobs:
@@ -79,6 +81,8 @@ jobs:
           # Your channel handle — shown in the on-video Subscribe prompt and in
           # the description's one-click subscribe link. SET THIS to your handle.
           CHANNEL_HANDLE: ${{ vars.CHANNEL_HANDLE || '@BROblox' }}
+          # Number of automated GTA 6 viral clips produced & published per run
+          GTA_CLIPS_PER_RUN: "2"
           # Daily output: 1 long-form + N Shorts derived from it (max 5 angles)
           DAILY_SHORTS: "3"
           # US prime-time publish slots (America/New_York). Long-form 7 PM ET,
