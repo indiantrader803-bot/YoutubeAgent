@@ -720,37 +720,6 @@ class PublishingSchedulingAgent {
     if (status === 'failed' || status === 'rejected' || status === 'hold') return false;
     return true;
   }
-  
-  // Queue-storage view: what is in the database right now.
-  // Public API callers (schedule panel, /schedule, dashboard) read this,
-  // not the in-memory publishQueue, so they always see a complete and
-  // consistent snapshot.
-  async getQueueStorage() {
-    if (!this.db || typeof this.db.getPublishQueue !== 'function') {
-      return [];
-    }
-    try {
-      return await this.db.getPublishQueue();
-    } catch (error) {
-      this.logger.warn(`Could not load publish queue storage: ${error.message}`);
-      return [];
-    }
-  }
-  
-  // Composable publish guard: a video is ready to publish when it has a real
-  // (non-simulated) mp4, its database entry says ready/scheduled, and no
-  // pending quality-gate or replay hold is attached. Publishing a half-\r
-  // rendered asset is the single biggest cause of "schedules but never
-  // available" — this guard stops that before it exits the process.
-  isReadyToPublish(entry) {
-    if (!entry || !entry.metadata) return false;
-    const video = entry.metadata.video || entry.metadata.videoAsset || {};
-    if (!video || video.simulated) return false;
-    if (video.path && typeof video.path === 'string' && video.path.endsWith('.assembly.json')) return false;
-    const status = String(entry.status || '').toLowerCase();
-    if (status === 'failed' || status === 'rejected' || status === 'hold') return false;
-    return true;
-  }
 
   async optimizePublishTimes() {
     // Analyze channel analytics to find optimal publish times

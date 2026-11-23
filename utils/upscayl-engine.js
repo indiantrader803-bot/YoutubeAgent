@@ -116,7 +116,9 @@ class UpscaylEngine {
     } catch (err) {
       console.error(`[Upscayl] Image upscaling error:`, err.message);
       if (fs.existsSync(tempOut)) {
-        try { await fsp.unlink(tempOut); } catch (_) {}
+        try { await fsp.unlink(tempOut); } catch (_) {
+          // ignore cleanup error
+        }
       }
       return inputPath;
     }

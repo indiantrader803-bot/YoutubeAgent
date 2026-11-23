@@ -31,16 +31,6 @@ function buildTopicPool() {
         isShort: false,
         thumbnailColors: category.thumbnailColors,
         thumbnailText: category.thumbnailText,
-        niches: [topic.title],
-        id: `${category.id}:${topic.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 40)}`,
-        title: topic.title,
-        categoryId: category.id,
-        categoryName: category.name,
-        type: isKids ? 'tomful-study-family' : category.contentType,
-        isKids,
-        isShort: false,
-        thumbnailColors: category.thumbnailColors,
-        thumbnailText: category.thumbnailText,
         niches: [topic.title]
       });
     }
