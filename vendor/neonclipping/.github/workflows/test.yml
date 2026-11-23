@@ -1,0 +1,71 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  unit:
+    name: unit tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    env:
+      NEONCLIPPING_NO_AUTOUPDATE: "1"
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: ffmpeg (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: ffmpeg (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ffmpeg
+      - name: ffmpeg (Windows)
+        if: runner.os == 'Windows'
+        run: choco install ffmpeg --no-progress -y
+      - run: python -m pip install -r requirements.txt
+      - run: python -m unittest discover -s tests -p "test_*.py"
+
+  install-script:
+    name: install.sh (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    env:
+      NEONCLIPPING_NO_AUTOUPDATE: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: ffmpeg (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: ffmpeg (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ffmpeg
+      - name: Run the real installer against this exact commit
+        run: |
+          export NEONCLIPPING_DIR="$RUNNER_TEMP/nc"
+          export NEONCLIPPING_ZIP="https://github.com/${{ github.repository }}/archive/${{ github.sha }}.zip"
+          export NEONCLIPPING_NO_START=1
+          bash install.sh
+      - name: Start it and wait for the health check
+        run: |
+          "$RUNNER_TEMP/nc/start.sh" > "$RUNNER_TEMP/nc/server.log" 2>&1 &
+          for i in $(seq 1 45); do
+            if curl -fs http://127.0.0.1:8770/healthz; then echo; echo "server is up"; exit 0; fi
+            sleep 2
+          done
+          echo "server did not start"; cat "$RUNNER_TEMP/nc/server.log"; exit 1

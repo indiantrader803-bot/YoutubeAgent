@@ -1,0 +1,8 @@
+name = "neonclipping-reports"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+
+# Create the store first:  npx wrangler kv namespace create REPORTS   then paste the id below.
+[[kv_namespaces]]
+binding = "REPORTS"
+id = "PASTE_KV_NAMESPACE_ID_HERE"

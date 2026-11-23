@@ -1,0 +1,55 @@
+@page{size:A4;margin:0}
+:root{--ink:#17122a;--paper:#fffaf3;--pink:#ff3d8b;--orange:#ff8a3d;--cyan:#12b8c9;--lime:#a6d800;--violet:#3b0f66}
+*{box-sizing:border-box}
+html{font-family:"Segoe UI","Nirmala UI","Mangal",sans-serif;color:var(--ink)}
+body{margin:0;background:#fff}
+.page{width:210mm;height:297mm;position:relative;overflow:hidden;page-break-after:always;background:var(--paper);padding:16mm 16mm 16mm}
+.page.cover{padding:0;background:linear-gradient(180deg,#1a0636 0%,#4b0f6e 40%,#b3216f 72%,#ff6a4d 100%);color:#fff}
+.cover .sun{position:absolute;left:50%;bottom:30mm;width:104mm;height:104mm;margin-left:-52mm;border-radius:50%;background:linear-gradient(180deg,#ffd45a 0 35%,#ff8a3d 35% 36%,#ffd45a 36% 52%,#ff8a3d 52% 54%,#ff6a4d 54%);opacity:.95}
+.cover .grid{position:absolute;left:-20%;right:-20%;bottom:0;height:90mm;background:#0b0912;background-image:repeating-linear-gradient(90deg,#58e8f755 0 2px,transparent 2px 22mm),repeating-linear-gradient(0deg,#58e8f755 0 2px,transparent 2px 14mm);transform:perspective(160mm) rotateX(58deg);transform-origin:bottom}
+.cover .txt{position:absolute;left:18mm;right:18mm;top:22mm;z-index:2}
+.kicker{letter-spacing:.3em;font-size:11pt;font-weight:700;color:#58e8f7}
+.cover h1{font-size:62pt;line-height:.95;margin:10mm 0 6mm;font-weight:900;letter-spacing:-.02em;text-shadow:0 0 40px #ff3d8b99}
+.cover h1 em{font-style:normal;color:var(--pink)}
+.cover p{font-size:15pt;max-width:150mm;line-height:1.4;text-shadow:0 1px 14px #1a0636}
+.cover .by{position:absolute;left:18mm;bottom:14mm;z-index:2;font-weight:700;font-size:13pt}
+.cover .by span{color:#58e8f7}
+.chip{display:inline-block;background:#fff;color:#17122a;border-radius:99px;padding:3mm 6mm;font-weight:800;font-size:12pt;margin-right:3mm;text-shadow:none}
+.chip.ig{background:linear-gradient(90deg,#ff3d8b,#ff8a3d);color:#fff}
+h2{font-size:23pt;margin:0 0 3mm;font-weight:900;letter-spacing:-.01em;line-height:1.1}
+h2 .n{color:var(--pink);margin-right:3mm}
+h3{font-size:13pt;margin:5mm 0 1.5mm;color:var(--violet)}
+p,li{font-size:10.5pt;line-height:1.5}
+ul,ol{padding-left:6mm;margin:2mm 0}
+code{background:#17122a;color:#9ff;border-radius:3px;padding:.3mm 1.6mm;font-family:Consolas,monospace;font-size:9.5pt}
+pre{background:#17122a;color:#e8f9ff;padding:4mm 5mm;border-radius:3mm;font-family:Consolas,monospace;font-size:10pt;line-height:1.5;margin:3mm 0;white-space:pre-wrap}
+pre.pr{font-size:8pt;line-height:1.38}
+.shot{border:1px solid #cdbfb0;border-radius:3mm;box-shadow:0 2mm 6mm #0002;margin:3mm 0;max-width:100%}
+.note{border-left:1.6mm solid var(--cyan);background:#e9fbfd;padding:3mm 4mm;border-radius:0 2mm 2mm 0;font-size:10pt;line-height:1.45;margin:3mm 0}
+.warn{border-left-color:var(--orange);background:#fff1e3}
+table{border-collapse:collapse;width:100%;margin:3mm 0;font-size:10pt}
+td,th{border:1px solid #d9cfc2;padding:2mm 3mm;text-align:left;vertical-align:top}
+th{background:#17122a;color:#fff}
+.foot{position:absolute;left:16mm;right:16mm;bottom:8mm;font-size:8.5pt;color:#7a6f86;display:flex;justify-content:space-between;border-top:1px solid #d9cfc2;padding-top:2mm}
+.cta{background:linear-gradient(90deg,#3b0f66,#b3216f);color:#fff;border-radius:4mm;padding:6mm;margin-top:6mm}
+.cta h3{color:#ffd45a;margin-top:0}
+.cta a{color:#fff;font-weight:800}
+.hi{font-family:"Nirmala UI","Mangal","Segoe UI",sans-serif}
+.hi p,.hi li{line-height:1.7}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:6mm}
+.lg{display:inline-block;background:var(--pink);color:#fff;font-size:7.5pt;font-weight:800;border-radius:2mm;padding:.4mm 2mm;margin-right:2mm}
+.sub{font-size:14pt;font-weight:700;color:var(--violet)}
+.lead{font-size:12pt;margin:2mm 0 4mm}
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:4mm;margin:4mm 0}
+.tile{background:#fff;border:1px solid #e3d8cb;border-radius:4mm;padding:4mm 5mm;box-shadow:0 1mm 4mm #0001}
+.tile .ic{font-size:22pt}
+.tile b{display:block;font-size:13pt;margin:1mm 0;color:var(--violet)}
+.tile p{margin:0 0 1mm;font-size:10pt;line-height:1.4}
+.tiles.small .tile{padding:3mm 4mm}
+.tiles.small .tile p{font-size:9.2pt}
+.tiles.small .ic{font-size:17pt}
+.steps{display:grid;gap:3mm;margin:3mm 0}
+.stp{display:flex;gap:4mm;align-items:flex-start;background:#fff;border:1px solid #e3d8cb;border-radius:4mm;padding:3mm 4mm}
+.stp .num{flex:none;width:9mm;height:9mm;border-radius:50%;background:var(--pink);color:#fff;font-weight:900;font-size:14pt;display:flex;align-items:center;justify-content:center}
+.stp b{font-size:10.6pt;line-height:1.35;display:block}
+.stp .hi{font-size:10.2pt;color:#4a3f5c;margin-top:.6mm}

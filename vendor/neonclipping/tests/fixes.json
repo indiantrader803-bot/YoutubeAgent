@@ -1,0 +1,98 @@
+[
+ {
+  "found": "Caption grouping lost a whole caption group and repeated the last one whenever a single trailing word was merged (visible in the MrBeast style: 'TEST OH MY GOD' missing). Python stored `groups[-2] += groups.pop()` into the wrong list entry. Found by looking at the rendered frames, not by the pass/fail checks.",
+  "fix": "captions.group_words pops first, then appends; new unit tests check every word appears exactly once in order over 500 random word streams."
+ },
+ {
+  "found": "POST /make with min_len longer than max_len silently started a job.",
+  "fix": "Rejected with HTTP 400 and a clear message; NaN / infinite lengths also rejected."
+ },
+ {
+  "found": "Caption accuracy defaulted to 'Accurate (turbo)'. You wanted Fast by default.",
+  "fix": "UI select and the API default are Fast now."
+ },
+ {
+  "found": "Make failed with 'Cannot load the vocabulary from the model directory': the turbo speech model folder had only model.bin (half-finished download).",
+  "fix": "Missing small files downloaded; captions._turbo_spec() now requires a complete snapshot and repairs an incomplete one itself."
+ },
+ {
+  "found": "Result cards (Make clips / Live) kept pointing at old clips after 'apply to all'; Live cards had no Edit button; Edit on an old card used a replaced clip.",
+  "fix": "Cards follow the newest file, Live cards got Edit clip, the server resolves old ids to the newest version."
+ },
+ {
+  "found": "The creator list was stored as data/creators.json, which the library and editor read as a clip record (library would have returned 500).",
+  "fix": "Stored as data/creators.store; counting code ignores non-record files."
+ },
+ {
+  "found": "Stop then 'Check now' on a creator restarted recording at once.",
+  "fix": "Stop settles a 30-minute pause first; Check now no longer cancels it; Auto off/on resumes immediately; the chip shows the pause."
+ },
+ {
+  "found": "Hindi Whisper loops ('chal chal chal chal ...') and stray accented / non-Latin junk ('funcao', 'nosga') ended up in Hinglish captions.",
+  "fix": "Words said more than 3 times in a row are cut back to 3; Hinglish captions are folded to plain ASCII letters. Unit-tested."
+ },
+ {
+  "found": "My clips with 100+ clips requested metadata for every video at once.",
+  "fix": "Videos load only when they scroll near the screen (IntersectionObserver)."
+ },
+ {
+  "found": "An unattended (auto) live recording could grow without limit.",
+  "fix": "3-hour cap per session, stop below 8 GB free disk, recording deleted after the last clip is cut."
+ },
+ {
+  "found": "install.ps1 printed the Desktop-shortcut message even with -NoShortcut.",
+  "fix": "Message follows the option; script is still ASCII-only and parses."
+ },
+ {
+  "found": "Browser could keep an old app.js after a fix.",
+  "fix": "Asset version in index.html bumped on every change."
+ },
+ {
+  "found": "Facecam detection by border alone picked GTA's minimap (a static bordered panel) instead of the webcam.",
+  "fix": "Candidates are verified with a small local face detector (YuNet, MIT, 230 KB): the webcam is the box that holds a face; the minimap never does."
+ },
+ {
+  "found": "Corner-only search missed webcams that float on the left or right side (Carry's stream) and boxes that were only the face inside a framed webcam.",
+  "fix": "Search any rectangle whose four sides are static lines or the frame edge, keep nested boxes and upgrade to the enclosing framed webcam. Checked by drawing the boxes on real frames."
+ },
+ {
+  "found": "X-post templates hid the video: the card was drawn by the caption layer on top of the clip.",
+  "fix": "Card shapes are drawn on the background in a first pass, the clip is overlaid, text goes on top."
+ },
+ {
+  "found": "Rounded corners (geq on every frame) made template and background renders 3x slower (17-31 s for an 8 s clip).",
+  "fix": "A cached mask image and alphamerge: 5-12 s."
+ },
+ {
+  "found": "Music bed test failed to show the rise because the voice dominated the level.",
+  "fix": "Measured on a source without audio (also tests the music-only path): the bed rises from quiet to 9x louder."
+ },
+ {
+  "found": "The chat-hype meter stayed at 100% on a very fast chat because the 'usual speed' counted the empty buckets from before the session started.",
+  "fix": "Baseline uses only buckets since the session began; an absolute scale is used in the first half minute. Unit-tested (busy chat at its normal speed shows about 25%)."
+ },
+ {
+  "found": "Stream titles came back as mojibake (UTF-8 read as the Windows code page) and emoji would have been burned into the hook.",
+  "fix": "Title decoded as UTF-8; emoji and symbols removed; verified on a real stream: the hook shows PLAYING GTA 6 FOR THE FIRST TIME in the clip."
+ },
+ {
+  "found": "Streamlink 8 prints that --twitch-disable-ads is deprecated and will be removed (it would then break live clipping).",
+  "fix": "The flag is no longer passed."
+ },
+ {
+  "found": "My installer test created two Desktop shortcuts pointing at a scratch folder.",
+  "fix": "Removed; tests that run the installer now always pass -NoShortcut."
+ },
+ {
+  "found": "Fast mode still ran the local speech model on every Hindi clip (slow, and wrong on loud game audio) although YouTube's own captions were already downloaded.",
+  "fix": "Fast uses YouTube captions for every language (Hindi transliterated to Hinglish); the local model only runs for Accurate / Best or when no captions exist. 2-hour Hindi video Make: 197 s, captions checked by eye."
+ },
+ {
+  "found": "YouTube writes nukta letters as one precomposed character, which the Hinglish converter dropped (kapde became kapn, padega became paga).",
+  "fix": "Split into letter + nukta first; unit-tested."
+ },
+ {
+  "found": "The local Accurate (turbo) captions were bad (you saw it too).",
+  "fix": "The option is gone. YouTube captions are the default for everything; Best Hindi (large-v3) is the only local model left, and only when chosen. Old API values 'accurate' map to YouTube captions."
+ }
+]

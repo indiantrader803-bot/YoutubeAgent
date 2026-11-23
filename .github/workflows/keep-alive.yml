@@ -29,7 +29,7 @@ jobs:
         run: |
           npm ci
           sudo apt-get update && sudo apt-get install -y ffmpeg python3-pip
-          pip3 install --break-system-packages yt-dlp opencv-python-headless faster-whisper
+          pip3 install --break-system-packages yt-dlp opencv-python-headless faster-whisper numpy scipy
 
       - name: Generate and publish daily videos (1 Short + 1 long-form)
         id: automation
@@ -83,6 +83,9 @@ jobs:
           CHANNEL_HANDLE: ${{ vars.CHANNEL_HANDLE || '@BROblox' }}
           # Number of automated GTA 6 viral clips produced & published per run
           GTA_CLIPS_PER_RUN: "2"
+          # Number of automated NeonClipping viral clips produced & published per run
+          NEON_CLIPS_PER_RUN: "2"
+          NEON_CLIPPING_ENABLED: "true"
           # Daily output: 1 long-form + N Shorts derived from it (max 5 angles)
           DAILY_SHORTS: "3"
           # US prime-time publish slots (America/New_York). Long-form 7 PM ET,

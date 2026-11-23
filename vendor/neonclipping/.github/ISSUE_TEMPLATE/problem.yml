@@ -1,0 +1,36 @@
+name: Problem / समस्या
+description: Something did not work. Easiest: use "Report a problem" inside the app, it fills this in for you. / कुछ नहीं चला। ऐप के अंदर "Report a problem" दबाएँ, यह अपने आप भर जाएगा।
+title: "Problem: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Tip:** open NeonClipping, press **Report a problem · समस्या बताएँ** (bottom-left) and choose option 1. It pre-fills the boxes below and removes links, user names, e-mails and IPs.
+        **टिप:** NeonClipping में नीचे बाएँ **Report a problem** दबाएँ और विकल्प 1 चुनें। नीचे के खाने अपने आप भर जाते हैं और लिंक, यूज़र नाम, ई-मेल, IP हट जाते हैं।
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened? / क्या हुआ?
+      description: One or two lines. / एक-दो लाइन में।
+    validations:
+      required: true
+  - type: dropdown
+    id: source
+    attributes:
+      label: What were you clipping? / क्या क्लिप कर रहे थे?
+      options: [YouTube link, Twitch / Kick link, My own MP4, Live stream, Other]
+    validations:
+      required: true
+  - type: dropdown
+    id: network
+    attributes:
+      label: Your internet / आपका इंटरनेट
+      description: Helps with the YouTube "not a bot" error. / YouTube के "not a bot" एरर में मदद करता है।
+      options: [Home Wi-Fi, Mobile data, VPN on, Office / hostel / shared Wi-Fi, Not sure]
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics (paste from the app) / डायग्नोस्टिक्स (ऐप से पेस्ट करें)
+      description: Do not add video links or personal details. / वीडियो लिंक या निजी जानकारी न डालें।
+      render: text

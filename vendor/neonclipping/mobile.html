@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b0912"><meta name="color-scheme" content="dark">
+<link rel="manifest" href="/manifest.webmanifest"><link rel="icon" href="/phone-icon.svg">
+<title>NeonClipping · phone</title>
+<style>
+:root{--bg:#0b0912;--panel:#171320;--line:#30263e;--pink:#ff4ba5;--cyan:#58e8f7;--lime:#d4fb58;--white:#fbf6ff;--muted:#a99db7}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--white);font:16px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding:max(14px,env(safe-area-inset-top)) 14px max(24px,env(safe-area-inset-bottom))}
+h1{font-size:20px;margin:4px 0 2px;letter-spacing:.02em}h1 b{color:var(--pink)}.sub{color:var(--muted);font-size:13px;margin-bottom:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px;margin:12px 0}
+label.f{display:block;font-size:12px;color:var(--muted);margin:10px 0 4px}
+input[type=text],input[type=password],input[type=tel],select{width:100%;background:#0f0b18;color:var(--white);border:1px solid var(--line);border-radius:12px;padding:13px;font:inherit}
+button{font:inherit;border:0;border-radius:14px;padding:14px 16px;font-weight:700;color:#fff;background:#2b2140;width:100%}
+button.main{background:linear-gradient(90deg,var(--pink),#9a4bff)}button.red{background:#d4204a}button.ghost{background:transparent;border:1px solid var(--line);color:var(--white)}
+button:disabled{opacity:.45}.row{display:flex;gap:8px}.row>*{flex:1}
+.seg button{padding:11px 6px;background:#0f0b18;border:1px solid var(--line);font-weight:600}.seg button.on{background:var(--pink);border-color:var(--pink)}
+.meter{height:16px;background:#0f0b18;border-radius:10px;overflow:hidden;border:1px solid var(--line)}.meter i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--cyan),var(--lime),#ff9a3c,#ff2d55);transition:width .5s}
+.big{font-size:22px;font-weight:800}.muted{color:var(--muted);font-size:13px}.err{color:#ff7a90;font-size:14px;margin-top:8px}
+.clips{display:grid;gap:12px}.clip video{width:100%;border-radius:12px;background:#000;aspect-ratio:9/16;max-height:62vh}
+.clip b{display:block;margin:8px 0 2px}.clip a{display:inline-block;margin-top:8px;padding:11px 16px;border-radius:12px;background:var(--lime);color:#111;text-decoration:none;font-weight:700;margin-right:8px}
+.hide{display:none}.pill{display:inline-block;font-size:11px;padding:2px 8px;border-radius:99px;border:1px solid var(--line);color:var(--cyan)}
+</style></head><body>
+<h1>Neon<b>Clipping</b> <span class="pill">phone remote</span></h1>
+<div class="sub">The PC does the work. This screen controls it and plays your clips.</div>
+
+<div id="login" class="card hide">
+  <b>Enter the PIN shown on your PC</b>
+  <label class="f">6-digit PIN</label><input id="pin" type="tel" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="123456">
+  <div style="margin-top:12px"><button class="main" id="pin-go">Connect</button></div><div class="err" id="pin-err"></div>
+  <p class="muted">On the PC: open NeonClipping, look at <b>Phone access</b> under Live clipping.</p>
+</div>
+
+<div id="app" class="hide">
+  <div class="card">
+    <b>⚡ Live clipping</b>
+    <label class="f">YouTube Live or Twitch link</label><input id="url" type="text" inputmode="url" placeholder="https://www.youtube.com/watch?v=… or twitch.tv/name" autocapitalize="off" autocorrect="off">
+    <label class="f">Clip length (starts before the chat peak)</label>
+    <div class="row seg" id="len"><button data-l="10">10 s</button><button data-l="20" class="on">20 s</button><button data-l="30">30 s</button><button data-l="0">Auto</button></div>
+    <div class="row" style="margin-top:10px"><div><label class="f">Captions</label><select id="caps"><option value="1">On</option><option value="0">Off (faster)</option></select></div>
+    <div><label class="f">Style</label><select id="style"><option value="gta">GTA Neon</option><option value="bold">Bold</option><option value="hormozi">Hormozi</option><option value="mrbeast">MrBeast</option><option value="clean">Clean</option></select></div></div>
+    <label class="f">Hook text on top</label>
+    <select id="hook"><option value="ai">AI writes it</option><option value="title">Stream title</option><option value="custom">My own text</option></select>
+    <input id="hook-text" class="hide" type="text" maxlength="70" placeholder="Your hook text" style="margin-top:8px">
+    <div class="row" style="margin-top:14px"><button class="red" id="start">▶ Start monitoring</button><button class="ghost" id="stop" disabled>■ Stop</button></div>
+    <div class="err" id="live-err"></div>
+  </div>
+
+  <div class="card" id="hype-card">
+    <div class="row" style="align-items:baseline"><b>🔥 Chat hype</b><span id="hype-label" class="muted" style="text-align:right">not started</span></div>
+    <div class="meter" style="margin:10px 0"><i id="hype-bar"></i></div>
+    <div class="muted" id="hype-info">Waiting for a live session…</div>
+    <div style="margin-top:12px"><button class="main" id="now" disabled>✂ Clip the last 20 s now</button></div>
+    <div class="muted" id="live-stats" style="margin-top:8px"></div>
+  </div>
+
+  <div class="card">
+    <b>🎬 Clips</b> <span class="muted" id="count"></span>
+    <div class="clips" id="clips"></div>
+    <div class="muted" id="none">Clips appear here by themselves when chat explodes, or when you press “Clip now”.</div>
+  </div>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+let liveId=null,timer=null,shown=new Set(),length=20;
+const PRE={10:[7,3],20:[12,8],30:[20,10],0:[24,14]};
+async function api(path,body){
+  const r=await fetch(path,body===undefined?{credentials:'same-origin'}:{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  let j={};try{j=await r.json()}catch(e){}
+  if(r.status===401&&path!=='/m/login'){show(false);throw Error('Enter the PIN')}
+  if(!r.ok)throw Error(j.detail||('Error '+r.status));return j;
+}
+function show(authed){$('login').classList.toggle('hide',authed);$('app').classList.toggle('hide',!authed);}
+$('pin-go').onclick=async()=>{$('pin-err').textContent='';try{await api('/m/login',{pin:$('pin').value});show(true);boot();}catch(e){$('pin-err').textContent=e.message;}};
+$('len').querySelectorAll('button').forEach(b=>b.onclick=()=>{length=Number(b.dataset.l);$('len').querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));$('now').textContent='✂ Clip the last '+(length||30)+' s now';});
+$('hook').onchange=()=>$('hook-text').classList.toggle('hide',$('hook').value!=='custom');
+function label(s){return s.status==='recording'?'● Recording '+Math.floor(s.elapsed/60)+':'+String(s.elapsed%60).padStart(2,'0'):s.status==='starting'?s.stage:s.stage||s.status;}
+async function poll(){
+  if(!liveId)return;
+  try{
+    const s=await api('/live/'+liveId);
+    const h=s.hype||0;$('hype-bar').style.width=h+'%';$('hype-label').textContent=h+'% · '+(s.hype_label||'');
+    $('hype-info').textContent=(s.msgs30||0)+' comments in the last 30 s · usual '+s.baseline+' per 10 s'+(s.chat&&s.chat!=='connected (read-only)'?' · chat: '+s.chat:'');
+    $('live-stats').textContent=label(s)+' · spikes '+s.spikes+' · clips '+s.clips.length+(s.pending?' · cutting '+s.pending+'…':'')+(s.title?' · '+s.title.slice(0,50):'');
+    s.clips.forEach((c,i)=>{if(shown.has(i))return;shown.add(i);addClip(c);});
+    const live=['starting','recording'].includes(s.status);$('start').disabled=live;$('stop').disabled=!live;$('now').disabled=s.status!=='recording';
+    if(s.status==='error')$('live-err').textContent=s.error||'Could not start';
+    if(!live){clearInterval(timer);timer=null;}
+  }catch(e){$('live-err').textContent=e.message;}
+}
+function addClip(c){
+  $('none').classList.add('hide');const d=document.createElement('div');d.className='clip card';
+  if(c.error){d.textContent='Clip failed: '+c.error;$('clips').prepend(d);return;}
+  const v=document.createElement('video');v.src='/media/'+c.file;v.controls=true;v.playsInline=true;v.preload='metadata';
+  const t=document.createElement('b');t.textContent=(c.title||'Clip')+(c.viral!=null?' · 🔥 '+c.viral:'');
+  const w=document.createElement('div');w.className='muted';w.textContent=c.why||'';
+  const a=document.createElement('a');a.href='/media/'+c.file;a.download='neonclipping-'+c.file+'.mp4';a.textContent='↓ Save';
+  d.append(v,t,w,a);
+  if(navigator.share){const sb=document.createElement('a');sb.href='#';sb.textContent='Share';sb.style.background='#2b2140';sb.style.color='#fff';sb.onclick=async e=>{e.preventDefault();try{const blob=await (await fetch('/media/'+c.file)).blob();await navigator.share({files:[new File([blob],'clip.mp4',{type:'video/mp4'})],title:c.title||'Clip'});}catch(x){}};d.append(sb);}
+  $('clips').prepend(d);$('count').textContent=shown.size+' this session';
+}
+function attach(id){liveId=id;shown=new Set();$('clips').replaceChildren();$('none').classList.remove('hide');clearInterval(timer);timer=setInterval(poll,2000);poll();}
+$('start').onclick=async()=>{
+  $('live-err').textContent='';const url=$('url').value.trim();if(!url){$('live-err').textContent='Paste the live link first.';return;}
+  const [before,after]=PRE[length];
+  try{const r=await api('/live/start',{url,layout:'blur',caption_style:$('style').value,captions:$('caps').value==='1',hook_mode:$('hook').value,hook_text:$('hook-text').value,before,after});attach(r.live);}
+  catch(e){$('live-err').textContent=e.message;if(/already running/.test(e.message)){const a=await api('/live-active');if(a.live)attach(a.live);}}
+};
+$('stop').onclick=async()=>{if(!liveId)return;try{await api('/live/'+liveId+'/stop',{});}catch(e){}poll();};
+$('now').onclick=async()=>{if(!liveId)return;try{await api('/live/'+liveId+'/clip-now',{seconds:length||30});$('live-stats').textContent='Cutting the last '+(length||30)+' s…';}catch(e){$('live-err').textContent=e.message;}};
+async function boot(){try{const a=await api('/live-active');if(a.live)attach(a.live);}catch(e){}}
+(async()=>{try{await api('/live-active');show(true);boot();}catch(e){show(false);}})();
+</script></body></html>

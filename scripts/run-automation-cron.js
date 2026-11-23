@@ -17,6 +17,7 @@ const { ChannelMaintenanceAgent } = require('../agents/channel-maintenance-agent
 const { ChannelMonetizationAgent } = require('../agents/channel-monetization-agent');
 const { AudienceTargetingGrowthAgent } = require('../agents/audience-targeting-growth-agent');
 const { GTAStreamClipperAgent } = require('../agents/gta-stream-clipper-agent');
+const { NeonClipperAgent } = require('../agents/neon-clipper-agent');
 const { DailyAutomation } = require('../schedules/daily-automation');
 const { getRunIndex } = require('../config/content-matrix');
 const { Logger } = require('../utils/logger');
@@ -51,7 +52,8 @@ async function runStandaloneAutomation() {
     channelMaintenance: new ChannelMaintenanceAgent(db, credentialManager),
     channelMonetization: new ChannelMonetizationAgent(db, credentialManager),
     audienceGrowth: new AudienceTargetingGrowthAgent(db, credentialManager),
-    gtaClipper: new GTAStreamClipperAgent(db, credentialManager)
+    gtaClipper: new GTAStreamClipperAgent(db, credentialManager),
+    neonClipper: new NeonClipperAgent(db, credentialManager)
   };
 
   for (const [name, agent] of Object.entries(agents)) {
@@ -154,6 +156,59 @@ async function runStandaloneAutomation() {
     await dailyAutomation.retryFailedPublishes();
   } catch (retryErr) {
     logger.error(`Retry pass failed: ${retryErr.message}`);
+  }
+
+  // ── NeonClipping Multi-Clip Viral Engine Pass ───────────────────────────
+  // Autonomous 24/7 feature: scans popular YouTube streamers, trending videos,
+  // and viral gameplay, extracts multiple highlights using neonclipping signals,
+  // renders vertical 9:16 Shorts with glowing neon subtitles, and publishes them.
+  if (process.env.NEON_CLIPPING_ENABLED !== 'false') {
+    const neonClipsCount = parseInt(process.env.NEON_CLIPS_PER_RUN || '2', 10);
+    logger.info(`✨ Running NeonClipping Viral Multi-Clip Engine (target: ${neonClipsCount} clips)...`);
+    try {
+      const generatedClips = await agents.neonClipper.runMultiClippingCycle({
+        clips: neonClipsCount,
+        duration: 35
+      });
+
+      for (let nIdx = 0; nIdx < generatedClips.length; nIdx++) {
+        const clip = generatedClips[nIdx];
+        if (clip && agents.publishing) {
+          await agents.publishing.scheduleContent({
+            contentId: `neon_${Date.now()}_${nIdx+1}`,
+            title: clip.title,
+            description: clip.description,
+            tags: clip.tags,
+            videoPath: clip.videoPath,
+            videoType: 'short',
+            platform: 'youtube',
+            privacyStatus: 'public'
+          });
+          logger.success(`✓ Scheduled Neon Viral Short #${nIdx+1}: ${clip.title}`);
+
+          await dailyAutomation.processPublishQueue(true).catch(e => logger.warn(`Publishing Neon short deferred: ${e.message}`));
+
+          // Send instant alert
+          const alertTelegram = new TelegramNotifier();
+          await alertTelegram.sendMessage(
+            `✨ <b>New Viral Neon Clip Uploaded to YouTube! (#${nIdx+1}/${generatedClips.length})</b>\n\n` +
+            `<b>Title:</b> ${clip.title}\n` +
+            `<b>Channel:</b> BROblox\n` +
+            `<b>Original Creator:</b> ${clip.creator || 'Top Creator'}\n` +
+            `<b>Highlight Reason:</b> ${clip.reason || 'Activity Peak'}\n` +
+            `<b>Status:</b> Live Public Short 🚀`
+          ).catch(() => {});
+
+          const alertEmail = new EmailNotifier();
+          await alertEmail.send(
+            `✨ New Viral Neon Clip Live on YouTube: "${clip.title}"`,
+            `Your automated NeonClipping engine just extracted and published a new Short to BROblox!\n\nClip #${nIdx+1} of ${generatedClips.length}\nTitle: ${clip.title}\nSource: ${clip.sourceUrl}\nStatus: Public Short\n\nCheck your channel: https://youtube.com/@BROblox`
+          ).catch(() => {});
+        }
+      }
+    } catch (neonErr) {
+      logger.warn(`NeonClipping Engine pass error: ${neonErr.message}`);
+    }
   }
 
   // ── GTA 6 Livestream & Gameplay Auto-Clipper Pass ────────────────────────
