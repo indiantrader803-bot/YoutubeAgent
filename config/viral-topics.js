@@ -1,146 +1,92 @@
-// Viral topic database — 50 topics across 5 high-RPM categories, targeting US/CA/UK/AU/DE/SG
-// audiences (highest YouTube RPM markets for English content).
+// High-Engagement Gaming & Viral Culture Topic Database
+// Re-engineered specifically for @BROblox audience:
+// Target Audience: Gamers, GTA 6 fans, Roblox players, Streamer highlight watchers (US/CA/UK/AU)
 
 const CATEGORIES = [
   {
-    id: 'future-ai',
-    name: 'Future & AI',
-    contentType: 'explainer',
-    thumbnailColors: ['#FFD600', '#FF3D00', '#2979FF'],
-    thumbnailText: ['2050', 'IS HERE', 'AI', 'TAKES OVER', 'TOMORROW'],
-    topics: [
-      { title: 'What Happens If AI Takes Every Job?' },
-      { title: 'A Day in 2050' },
-      { title: 'Would You Trust Robot Police?' },
-      { title: 'School in 2040' },
-      { title: 'The Brain Chip Revolution' },
-      { title: 'Flying Cars Explained' },
-      { title: 'Can AI Replace Doctors?' },
-      { title: 'Living on Mars' },
-      { title: "The World's First Robot Army" },
-      { title: 'What If AI Controlled Earth?' }
-    ]
-  },
-  {
-    id: 'space',
-    name: 'Space',
-    contentType: 'explainer',
-    thumbnailColors: ['#2979FF', '#FFD600', '#FF3D00'],
-    thumbnailText: ['INSIDE', 'THE VOID', 'BLACK HOLE', 'SPACE', 'GALAXY'],
-    topics: [
-      { title: 'What Happens Inside a Black Hole?' },
-      { title: 'Can Humans Survive on Mars?' },
-      { title: 'If the Moon Disappeared' },
-      { title: 'If the Sun Exploded' },
-      { title: 'The Scariest Planet' },
-      { title: "NASA's Biggest Mission" },
-      { title: "James Webb's Biggest Discovery" },
-      { title: 'What If Earth Spun Faster?' },
-      { title: "Inside Jupiter's Storm" },
-      { title: 'When Two Galaxies Collide' }
-    ]
-  },
-  {
-    id: 'dark-psychology',
-    name: 'Dark Psychology',
-    contentType: 'explainer',
-    thumbnailColors: ['#D500F9', '#FFD600', '#FF1744'],
-    thumbnailText: ['YOUR BRAIN', 'LIES', 'MIND', 'TRICKS', 'SECRETS'],
-    topics: [
-      { title: 'Why You Always Pay More at Checkout' },
-      { title: 'The Psychology of Waiting in Line' },
-      { title: 'Why People Brag Without Shame' },
-      { title: 'The Silent Way People Control You' },
-      { title: 'Read a Room Like a Detective' },
-      { title: 'Why Fake Experts Sound Confident' },
-      { title: 'What Your Music Says About You' },
-      { title: 'Why Smart People Trust the Wrong People' },
-      { title: 'The Fastest Way Someone Builds Trust' },
-      { title: 'Read People Before They Speak' }
-    ]
-  },
-  {
-    id: 'history-what-if',
-    name: 'History & What If',
+    id: 'gta6-gaming',
+    name: 'GTA 6 & Open World Gaming',
     contentType: 'story',
-    thumbnailColors: ['#FF6D00', '#FFD600', '#00C853'],
-    thumbnailText: ['WHAT IF', 'ROME', 'LOST', 'SECRETS', 'ANCIENT'],
+    thumbnailColors: ['#FF007F', '#00F0FF', '#FFE600'],
+    thumbnailText: ['GTA 6', 'LEAKS', 'MAP', 'SECRET', 'ROCKS'],
     topics: [
-      { title: 'If You Lived in the Roman Empire' },
-      { title: 'What If Dinosaurs Never Went Extinct?' },
-      { title: 'If the Internet Ended Tomorrow' },
-      { title: 'The Library of Alexandria: What Was Lost?' },
-      { title: 'If You Could Visit Any Century' },
-      { title: 'If Aliens Found Ancient Earth' },
-      { title: 'The Mystery of the Bronze Age Collapse' },
-      { title: 'If Time Travel Were Real' },
-      { title: 'The Lost City No One Can Explain' },
-      { title: 'History\'s Biggest Unsolved Mystery' }
+      { title: 'Everything Rockstar Is Hiding in GTA 6' },
+      { title: 'The Insane Map Size of GTA 6 Explained' },
+      { title: 'Top 5 GTA 6 Features That Will Break the Internet' },
+      { title: 'Will GTA 6 Cost 100 Dollars? The Truth' },
+      { title: 'Crazy Details in GTA 6 You Completely Missed' },
+      { title: 'GTA 6 Vice City Easter Eggs You Need to See' },
+      { title: 'Why GTA 6 Physics Will Change Gaming Forever' },
+      { title: 'The Most Dangerous Gangs in GTA 6 Vice City' },
+      { title: 'Secret Weapons Confirmed for GTA 6' },
+      { title: 'GTA 6 Launch Date Confirmed? What We Know' }
     ]
   },
   {
-    id: 'survival',
-    name: 'Survival & Challenges',
+    id: 'roblox-viral',
+    name: 'Roblox Mysteries & Viral Moments',
     contentType: 'story',
-    thumbnailColors: ['#FF1744', '#FFD600', '#2962FF'],
-    thumbnailText: ['SURVIVE', 'LOST', 'LAST', 'END', 'WARNING'],
+    thumbnailColors: ['#FF1744', '#00E676', '#FFEA00'],
+    thumbnailText: ['ROBLOX', 'SCARY', 'GLITCH', 'BANNED', 'MYSTERY'],
     topics: [
-      { title: 'How to Survive a Desert Island' },
-      { title: 'The 3 Items You Need Most' },
-      { title: 'If Animals Could Talk' },
-      { title: 'What You Should Always Carry' },
-      { title: 'If You Got Lost in the Forest' },
-      { title: 'Seven Days Without Food' },
-      { title: 'If You Were the Last Person on Earth' },
-      { title: 'The Skill That Saves Lives' },
-      { title: 'How to Find Water Anywhere' },
-      { title: 'What to Do If a Storm Hits' }
+      { title: 'The Darkest Unsolved Mystery in Roblox History' },
+      { title: 'Roblox Games That Got Banned Instantly' },
+      { title: 'The Rarest Item in Roblox Nobody Can Buy' },
+      { title: 'Crazy Roblox Glitches Players Abused for Millions' },
+      { title: 'Scariest Roblox Games That Feel Illegal to Play' },
+      { title: 'The Richest Roblox Player of All Time' },
+      { title: 'What Happened to the Most Famous Roblox Hacker?' },
+      { title: 'Roblox Myths That Turned Out to Be Real' },
+      { title: 'Insane Secrets Hidden in Popular Roblox Games' },
+      { title: 'Why This Roblox Update Shocked Millions' }
     ]
   },
   {
-    // Family-friendly kids/family animation layer — a recurring series wrapper
-    // so the channel can publish "Milo's Little Adventures" educational stories
-    // without duplicating the regular viral universe. Every topic is original,
-    // gentle, and concept-driven (one idea per episode for tight pacing and
-    // compilation-friendly episodes), which also keeps the channel on the right
-    // side of "mass-produced / repetitive" review.
-    id: 'milo-family',
-    name: "Milo's Little Adventures (Kids & Family)",
-    contentType: 'tomful-study-family',
-    thumbnailColors: ['#66BB6A', '#FFEE58', '#1976D2'],
-    thumbnailText: ['MILO', 'ADVENTURES', 'LEARN', 'FUN', 'FAMILY'],
-    familyFriendly: true,
-    copilotAgeLabel: 'madeForKids',
+    id: 'streamer-culture',
+    name: 'Top Streamers & Viral Moments',
+    contentType: 'explainer',
+    thumbnailColors: ['#7C4DFF', '#FF0055', '#00E5FF'],
+    thumbnailText: ['STREAMER', 'CLUTCH', 'FAIL', 'CAUGHT', 'INSANE'],
     topics: [
-      { title: 'Milo Learns the Alphabet' },
-      { title: 'Milo Counts to Ten' },
-      { title: 'Milo Discovers Shapes' },
-      { title: 'Milo Meets the Rainbow' },
-      { title: 'Milo Finds the Colors' },
-      { title: 'Milo Explores the Garden' },
-      { title: 'Milo Sees the Seasons Change' },
-      { title: 'Milo Learns to Share' },
-      { title: 'Milo and the Friendly Stars' }
+      { title: 'Funniest Streamer Fails Caught on Live Broadcast' },
+      { title: 'When Streamers Got Banned for the Craziest Reasons' },
+      { title: 'Top 5 Most Insane Streamer Clutches of All Time' },
+      { title: 'The Biggest Donations in Live Stream History' },
+      { title: 'When Streamers Regretted What They Said Instantly' },
+      { title: 'Most Shocking Moments in YouTube Stream History' },
+      { title: 'Streamers Who Won Impossible Bets Live' },
+      { title: 'Unbelievable Gaming Records That Will Never Be Broken' },
+      { title: 'When Streamers Forgot the Camera Was On' },
+      { title: 'The Most Viral Gaming Moments of the Year' }
+    ]
+  },
+  {
+    id: 'gaming-myths',
+    name: 'Gaming Mysteries & Urban Legends',
+    contentType: 'explainer',
+    thumbnailColors: ['#D500F9', '#FFD600', '#00B0FF'],
+    thumbnailText: ['GAMING', 'MYTHS', 'SOLVED', 'SECRET', 'HIDDEN'],
+    topics: [
+      { title: 'Scariest Easter Eggs Ever Found in Video Games' },
+      { title: 'Gaming Urban Legends That Actually Turned Out True' },
+      { title: 'The Secret Ending Nobody Unlocked for 10 Years' },
+      { title: 'Creepiest Unused Files Hidden in Video Games' },
+      { title: 'Video Games That Broke the Fourth Wall Terrifyingly' },
+      { title: 'Why This Game Level Was Banned Worldwide' },
+      { title: 'Unsolved Video Game Mysteries That Keep Gamers Awake' },
+      { title: 'The Most Feared Boss Fight in Gaming History' },
+      { title: 'Secret Developer Rooms Found in Video Games' },
+      { title: 'Gaming Secrets That Took Decades to Find' }
     ]
   }
 ];
 
-// ── Daily publishing schedule ────────────────────────────────────────────────
-// The daily batch (1 long-form + 3 Shorts) and its US prime-time publish
-// slots, consumed by loadContentMatrix() in config/content-matrix.js. These
-// are mirrored from the production scheduler so the cron and the dashboard
-// talk about exactly the same slots.
-
-// The angle roster shared by the daily batch (1 long + 3 Shorts) and the
-// production scheduler. Channel Development used this angle list, so it is a
-// stable, never-changing fixture.
-
 const SHORT_ANGLES = [
-  { id: 'hook-twist', label: 'Hook + twist', preview: 'A surprising twist turns the story on its head.' },
-  { id: 'myth-bust', label: 'Myth vs fact', preview: 'A common belief gets dismantled with a simple fact.' },
-  { id: 'top-fact', label: 'Top facts', preview: 'The strongest facts, brightest story.' },
-  { id: 'what-if', label: 'What if?', preview: 'A small change in the story creates a big question.' },
-  { id: 'stat-shock', label: 'Stat shock', preview: 'A number that should not be true, but is.' }
+  { id: 'hook-twist', label: 'Insane Twist', preview: 'A sudden shock or unexpected moment in the gameplay.' },
+  { id: 'myth-bust', label: 'Myth vs Fact', preview: 'Exposing a popular gaming rumor or secret.' },
+  { id: 'top-fact', label: 'Top 3 Moments', preview: 'Fast-paced countdown of the craziest events.' },
+  { id: 'what-if', label: 'What If', preview: 'What happens if you break the game mechanics.' },
+  { id: 'stat-shock', label: 'Mind-Blowing Stat', preview: 'An unbelievable stat that shocks every gamer.' }
 ];
 
 const DAILY_PLAN = {
@@ -154,6 +100,6 @@ const UPLOAD_SCHEDULE = {
   shortHoursET: [9, 13, 17]
 };
 
-const TARGET_GEOS = ['US', 'CA', 'IN', 'SG', 'PH', 'NZ', 'AU', 'IE', 'NG', 'GH'];
+const TARGET_GEOS = ['US', 'CA', 'UK', 'AU', 'IN', 'SG', 'PH', 'DE'];
 
 module.exports = { CATEGORIES, DAILY_PLAN, SHORT_ANGLES, UPLOAD_SCHEDULE, TARGET_GEOS };
