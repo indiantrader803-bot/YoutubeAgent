@@ -42,6 +42,8 @@ def find_candidate_video(query=None):
     
     cmd = [
         sys.executable, "-m", "yt_dlp",
+        "--js-runtimes", "node",
+        "--remote-components", "ejs:github",
         "--default-search", "ytsearch15",
         search_q,
         "--dump-json",
@@ -68,21 +70,26 @@ def find_candidate_video(query=None):
     # Fallback to first valid entry
     return json.loads(lines[0])
 
-def download_video(webpage_url, out_temp_path):
-    print(f"[GTA-Clipper] Downloading source stream via yt-dlp...", file=sys.stderr)
+def download_video(webpage_url, out_temp_path, start_time=None, duration=None):
+    print(f"[GTA-Clipper] Downloading stream ({start_time}s to {start_time + duration if start_time is not None and duration else 'end'}s)...", file=sys.stderr)
     cmd = [
         sys.executable, "-m", "yt_dlp",
-        "-f", "18/134+140/best[height<=720]/best",
+        "--js-runtimes", "node",
+        "--remote-components", "ejs:github",
+        "-f", "best[height<=720]/bestvideo[height<=720]+bestaudio/best",
         "--no-update",
-        "--force-overwrites",
-        "-o", out_temp_path,
-        webpage_url
+        "--force-overwrites"
     ]
+    if start_time is not None and duration is not None:
+        cmd.extend(["--download-sections", f"*{int(start_time)}-{int(start_time + duration)}"])
+    
+    cmd.extend(["-o", out_temp_path, webpage_url])
     run_cmd(cmd, check=True)
     
     # Check if format merged into mp4 or mkv
     if not os.path.exists(out_temp_path):
-        candidates = list(Path(out_temp_path).parent.glob("gta_source_raw.*"))
+        stem = Path(out_temp_path).stem
+        candidates = list(Path(out_temp_path).parent.glob(f"{stem}.*"))
         if candidates:
             return str(candidates[0])
         raise FileNotFoundError(f"Source video download failed for {webpage_url}")
@@ -156,11 +163,11 @@ def main():
         start_max = max(start_min + 5, int(duration * 0.75) - clip_len)
         start_time = random.randint(start_min, start_max) if start_max > start_min else start_min
         
-        # Step 1: Download source video
-        source_file = download_video(webpage_url, raw_temp)
+        # Step 1: Download only the needed section of the stream directly
+        source_file = download_video(webpage_url, raw_temp, start_time=start_time, duration=clip_len)
         
-        # Step 2: Render 9:16 Short
-        out_file = render_vertical_short(source_file, start_time, clip_len, args.out)
+        # Step 2: Render 9:16 Short (render from beginning of the downloaded section)
+        out_file = render_vertical_short(source_file, 0, clip_len, args.out)
         
         # Cleanup raw source
         try:

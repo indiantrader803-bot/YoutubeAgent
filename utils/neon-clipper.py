@@ -55,6 +55,8 @@ def search_popular_videos(query=None, limit=12):
     
     cmd = [
         sys.executable, "-m", "yt_dlp",
+        "--js-runtimes", "node",
+        "--remote-components", "ejs:github",
         "--default-search", f"ytsearch{limit}",
         search_q,
         "--dump-json",
@@ -88,7 +90,9 @@ def download_video_stream(webpage_url, out_temp_path):
     print(f"[NeonClipper] Downloading stream: {webpage_url}...", file=sys.stderr)
     cmd = [
         sys.executable, "-m", "yt_dlp",
-        "-f", "bestvideo[height<=1080][ext=mp4]+bestaudio[ext=m4a]/best[height<=720]/best",
+        "--js-runtimes", "node",
+        "--remote-components", "ejs:github",
+        "-f", "best[height<=720]/bestvideo[height<=720]+bestaudio/best",
         "--no-update",
         "--force-overwrites",
         "-o", out_temp_path,
