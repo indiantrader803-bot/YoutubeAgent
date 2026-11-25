@@ -76,7 +76,9 @@ class NeonClipperAgent {
           try {
             const parsed = JSON.parse(stdout.trim());
             if (parsed && parsed.error) parsedError = parsed.error;
-          } catch (_) {}
+          } catch (_e) {
+            // stdout was not JSON; fall back to stderr below
+          }
           return reject(new Error(parsedError ? `Neon clipper error: ${parsedError}` : `Neon clipper failed (code ${code}): ${stderr.slice(-400)}`));
         }
 
