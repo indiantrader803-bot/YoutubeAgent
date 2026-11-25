@@ -38,14 +38,12 @@ def run_cmd(cmd, check=True):
 
 def find_candidate_video(query=None):
     search_q = query or random.choice(DEFAULT_SEARCHES)
-    print(f"[GTA-Clipper] Searching YouTube via yt-dlp: '{search_q}'...", file=sys.stderr)
+    print(f"[GTA-Clipper] Searching YouTube: '{search_q}'...", file=sys.stderr)
     
     cmd = [
         sys.executable, "-m", "yt_dlp",
-        "--js-runtimes", "node",
-        "--remote-components", "ejs:github",
-        "--default-search", "ytsearch15",
-        search_q,
+        "--flat-playlist",
+        f"ytsearch12:{search_q}",
         "--dump-json",
         "--no-playlist",
         "--no-update",
@@ -54,28 +52,37 @@ def find_candidate_video(query=None):
     p = run_cmd(cmd, check=False)
     lines = [line.strip() for line in p.stdout.strip().split("\n") if line.strip().startswith("{")]
     if not lines:
-        raise RuntimeError("No candidate GTA stream found matching criteria.")
+        raise RuntimeError(f"No candidate GTA video found for query: {search_q}")
     
+    candidates = []
     for line in lines:
         try:
             info = json.loads(line)
-            duration = info.get("duration", 0)
-            # Accept videos between 60s and 3600s (up to 1 hour)
-            if 60 <= duration <= 3600:
-                print(f"[GTA-Clipper] Selected video: '{info.get('title')}' by {info.get('uploader')} ({duration}s)", file=sys.stderr)
-                return info
+            # Must have id or url
+            if not info.get("id") and not info.get("url"):
+                continue
+            candidates.append(info)
         except Exception:
             continue
             
-    # Fallback to first valid entry
-    return json.loads(lines[0])
+    if not candidates:
+        raise RuntimeError("No valid candidate videos found in search results.")
+        
+    # Prefer videos with duration between 45s and 7200s (2 hrs)
+    for c in candidates:
+        d = c.get("duration")
+        if d and 45 <= d <= 7200:
+            print(f"[GTA-Clipper] Selected video: '{c.get('title')}' by {c.get('uploader', 'Creator')} ({d}s)", file=sys.stderr)
+            return c
+            
+    selected = random.choice(candidates)
+    print(f"[GTA-Clipper] Selected video: '{selected.get('title')}'", file=sys.stderr)
+    return selected
 
 def download_video(webpage_url, out_temp_path, start_time=None, duration=None):
-    print(f"[GTA-Clipper] Downloading stream ({start_time}s to {start_time + duration if start_time is not None and duration else 'end'}s)...", file=sys.stderr)
+    print(f"[GTA-Clipper] Downloading section ({start_time}s - {start_time + duration if start_time is not None and duration else 'end'}s)...", file=sys.stderr)
     cmd = [
         sys.executable, "-m", "yt_dlp",
-        "--js-runtimes", "node",
-        "--remote-components", "ejs:github",
         "-f", "best[height<=720]/bestvideo[height<=720]+bestaudio/best",
         "--no-update",
         "--force-overwrites"
@@ -86,7 +93,7 @@ def download_video(webpage_url, out_temp_path, start_time=None, duration=None):
     cmd.extend(["-o", out_temp_path, webpage_url])
     run_cmd(cmd, check=True)
     
-    # Check if format merged into mp4 or mkv
+    # Check if format merged into mp4, webm or mkv
     if not os.path.exists(out_temp_path):
         stem = Path(out_temp_path).stem
         candidates = list(Path(out_temp_path).parent.glob(f"{stem}.*"))

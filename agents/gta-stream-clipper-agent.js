@@ -61,7 +61,12 @@ class GTAStreamClipperAgent {
       proc.on('close', async (code) => {
         if (code !== 0) {
           this.logger.error(`Python clipper exited with code ${code}`);
-          return reject(new Error(`GTA clipper failed: ${stderr}`));
+          let parsedError = null;
+          try {
+            const parsed = JSON.parse(stdout.trim());
+            if (parsed && parsed.error) parsedError = parsed.error;
+          } catch (_) {}
+          return reject(new Error(parsedError ? `GTA clipper error: ${parsedError}` : `GTA clipper failed (code ${code}): ${stderr.slice(-400)}`));
         }
 
         try {

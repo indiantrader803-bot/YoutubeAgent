@@ -55,10 +55,8 @@ def search_popular_videos(query=None, limit=12):
     
     cmd = [
         sys.executable, "-m", "yt_dlp",
-        "--js-runtimes", "node",
-        "--remote-components", "ejs:github",
-        "--default-search", f"ytsearch{limit}",
-        search_q,
+        "--flat-playlist",
+        f"ytsearch{limit}:{search_q}",
         "--dump-json",
         "--no-playlist",
         "--no-update",
@@ -73,28 +71,26 @@ def search_popular_videos(query=None, limit=12):
     for line in lines:
         try:
             info = json.loads(line)
-            duration = info.get("duration", 0)
-            # Find quality source videos between 90 seconds and 3600 seconds
-            if 90 <= duration <= 3600:
-                candidates.append(info)
+            if not info.get("id") and not info.get("url"):
+                continue
+            candidates.append(info)
         except Exception:
             continue
             
-    if not candidates and lines:
-        candidates.append(json.loads(lines[0]))
+    if not candidates:
+        raise RuntimeError(f"No valid candidate video JSON found for '{search_q}'.")
         
     print(f"[NeonClipper] Found {len(candidates)} viable candidates.", file=sys.stderr)
     return candidates
 
-def download_video_stream(webpage_url, out_temp_path):
-    print(f"[NeonClipper] Downloading stream: {webpage_url}...", file=sys.stderr)
+def download_video_stream(webpage_url, out_temp_path, max_sample_seconds=180):
+    print(f"[NeonClipper] Downloading stream sample ({max_sample_seconds}s): {webpage_url}...", file=sys.stderr)
     cmd = [
         sys.executable, "-m", "yt_dlp",
-        "--js-runtimes", "node",
-        "--remote-components", "ejs:github",
         "-f", "best[height<=720]/bestvideo[height<=720]+bestaudio/best",
         "--no-update",
         "--force-overwrites",
+        "--download-sections", f"*30-{30 + max_sample_seconds}",
         "-o", out_temp_path,
         webpage_url
     ]

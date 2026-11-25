@@ -29,7 +29,7 @@ jobs:
         run: |
           npm ci
           sudo apt-get update && sudo apt-get install -y ffmpeg python3-pip
-          pip3 install --break-system-packages yt-dlp opencv-python-headless faster-whisper numpy scipy
+          pip3 install -U --break-system-packages yt-dlp opencv-python-headless faster-whisper numpy scipy
 
       - name: Generate and publish daily videos (1 Short + 1 long-form)
         id: automation
